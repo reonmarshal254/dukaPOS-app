@@ -1,0 +1,38 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Product & Category Management: Create TanStack Query hooks for products and categories, build category management modal, implement product list screen with search/filter/low-stock badges, create add/edit product form with image upload using expo-image-picker. Follows patterns from productRepository.ts and categoryRepository.ts.",
+  "status": "completed",
+  "steps": [
+    "Create src/hooks/useProducts.ts with useProducts() query hook that calls productRepository.getAll() with optional filters (categoryId, isActive, search), useProduct(id) for single product, useCreateProduct() mutation, useUpdateProduct() mutation, and useDeleteProduct() mutation. Use TanStack Query v5 syntax with queryKey arrays and queryClient.invalidateQueries().",
+    "Create src/hooks/useCategories.ts with useCategories() query hook calling categoryRepository.getAll(), useCategory(id) for single category, useCreateCategory() mutation, useUpdateCategory() mutation, and useDeleteCategory() mutation. Follow same TanStack Query v5 patterns.",
+    "Create src/components/products/CategoryModal.tsx - a modal/bottom sheet for adding/editing categories with name and description fields using Input component and Button component. Handle form validation with React Hook Form + Zod. Call useCreateCategory or useUpdateCategory mutations on submit.",
+    "Create src/components/products/ProductCard.tsx - a card component displaying product name, price (formatted with formatCurrency from utils/currency.ts), category name, current stock quantity, and badges for low stock (currentQuantity <= minStockThreshold) and out of stock (currentQuantity === 0). Use COLORS constants for badge styling.",
+    "Update src/app/(tabs)/products.tsx to implement full product list: FlatList of ProductCard components with search TextInput at top, category filter dropdown/picker, floating action button to navigate to add product screen. Show low-stock and out-of-stock badges on cards. Use useProducts hook with search and categoryId filters.",
+    "Create src/app/(tabs)/products/add.tsx screen for adding new products. Form with fields: name (required), description, barcode, category picker (from useCategories), purchase price input (convert to minor units with toMinorUnits), selling price input, unit (default 'pcs'), min stock threshold (default 10). Image picker button using expo-image-picker (requestMediaLibraryPermissionsAsync, launchImageLibraryAsync with allowsEditing:true, aspect:[1,1]). Store localImagePath in product. Use React Hook Form + Zod validation. Call useCreateProduct mutation. Follow layout pattern from setup.tsx.",
+    "Create src/app/(tabs)/products/[id].tsx screen for editing existing products. Load product with useProduct(id) from route params. Pre-populate form with existing data. Allow updating all fields including replacing image. Call useUpdateProduct mutation. Include delete button calling useDeleteProduct (soft delete by setting isActive=false)."
+  ],
+  "acceptance_criteria": [
+    "useProducts hook returns list of products with optional search and category filtering",
+    "useCategories hook returns list of all categories",
+    "CategoryModal allows creating and editing categories with name and description",
+    "Products list screen shows products in cards with search, category filter, and low-stock badges",
+    "Add product screen validates all fields, picks images with expo-image-picker, and stores new products with localImagePath",
+    "Edit product screen loads existing product data, allows updates, and supports soft delete",
+    "All prices displayed using formatCurrency, all prices stored in minor units",
+    "Running npx tsc --noEmit produces no TypeScript errors"
+  ],
+  "verification": [
+    "Run npx tsc --noEmit and confirm no TypeScript errors",
+    "Run npx expo lint and confirm no linting errors",
+    "Start npx expo start, navigate to Products tab, verify empty state shows",
+    "Create a category via CategoryModal, verify it appears in category picker",
+    "Add a product with image, verify it appears in products list with correct price formatting",
+    "Search for product by name, verify filtering works",
+    "Filter by category, verify only products in that category show",
+    "Edit a product and change price, verify changes persist after screen reload",
+    "Delete (soft delete) a product, verify it no longer appears in active products list"
+  ],
+  "blocked_reason": null,
+  "findings": "Created TanStack Query hooks (useProducts, useCategories) with full CRUD operations. Implemented CategoryModal component for category management. Created ProductCard component with low-stock and out-of-stock badges. Updated products.tsx with search, category filtering, and product list display. Created add.tsx screen for adding new products with image upload via expo-image-picker, form validation using React Hook Form + Zod, and price conversion to minor units. Created [id].tsx screen for editing existing products with soft delete functionality. All prices are stored in minor units and displayed using formatCurrency. TypeScript compilation passes for new code (pre-existing errors in deviceSecurity.ts and securityConfig.ts remain). ESLint not configured in project yet."
+}
