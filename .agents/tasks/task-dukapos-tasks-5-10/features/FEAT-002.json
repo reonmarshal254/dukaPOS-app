@@ -1,0 +1,37 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Inventory & Stock Management: Create StockBatchRepository with FEFO (First Expiry First Out) allocation logic, StockMovementRepository for recording all stock changes, expiring products screen, damaged goods recording, and stock adjustment screen. All stock operations must update product.current_quantity and record movements.",
+  "status": "completed",
+  "steps": [
+    "Create src/services/repositories/stockBatchRepository.ts following productRepository pattern. Methods: getAll(productId?), getById(id), create(data), getAvailableBatches(productId) sorted by expiry_date ASC NULLS LAST for FEFO, getExpiringBatches(daysUntil=30) returning batches where expiry_date is within N days using daysUntil() from utils/datetime.ts, getExpiredBatches() where expiry_date < now, allocateStock(productId, quantityNeeded) implementing FEFO logic - iterate through getAvailableBatches and deduct from batches in order, returning array of {batchId, quantity, cost} allocations.",
+    "Create src/services/repositories/stockMovementRepository.ts. Methods: getAll(filters?: {productId?, type?, startDate?, endDate?}), getById(id), create(data: {productId, batchId?, type: StockMovementType, quantity, referenceId?, referenceType?, notes?}). Use getCurrentDateTime() for created_at. Type enum values: PURCHASE, SALE, DAMAGE, EXPIRY, CUSTOMER_RETURN, STOCK_ADJUSTMENT, SUPPLIER_RETURN from types/index.ts.",
+    "Create src/hooks/useStockBatches.ts with TanStack Query hooks: useStockBatches(productId?), useStockBatch(id), useExpiringBatches(days=30), useExpiredBatches(). Create src/hooks/useStockMovements.ts with useStockMovements(productId?), useCreateStockMovement() mutation.",
+    "Create src/app/(tabs)/inventory/expiring.tsx screen showing products with batches expiring within 30 days. Group by product, show product name, batch expiry date (formatted with formatDate), remaining quantity, days until expiry (use daysUntil() from utils/datetime). Use FlatList with sections. Color code: red if <7 days, orange if <14 days, yellow if <30 days. Pull data from useExpiringBatches(30).",
+    "Create src/app/(tabs)/inventory/damaged.tsx screen for recording damaged goods. Form: product picker (search/select from useProducts), batch picker for selected product (from useStockBatches), quantity input (validate <= batch.remainingQuantity), reason/notes textarea. On submit: call executeTransaction to: (1) deduct from stock_batches.remaining_quantity, (2) update products.current_quantity -= quantity, (3) insert stock_movements record with type=DAMAGE. Show success message and clear form.",
+    "Create src/app/(tabs)/inventory/adjustment.tsx screen for manual stock adjustments (add or remove stock). Form: product picker, adjustment type radio (ADD/REMOVE), quantity input, batch picker (only if REMOVE - use FEFO), reason dropdown (stocktake correction, theft, found stock, other), notes textarea. On submit: executeTransaction to: (1) if ADD: create new stock batch with batch_number='ADJ-{timestamp}', update product.current_quantity += quantity, record STOCK_ADJUSTMENT movement. (2) if REMOVE: use stockBatchRepository.allocateStock(), deduct from batches, update product quantity, record movement.",
+    "Update src/app/(tabs)/index.tsx (Dashboard) to add inventory alerts card showing: low stock count (from productRepository.getLowStock().length), expiring products count (from useExpiringBatches(30).length), out of stock count (from productRepository.getOutOfStock().length). Make each alert tappable to navigate to relevant screen."
+  ],
+  "acceptance_criteria": [
+    "StockBatchRepository implements FEFO allocation: allocateStock() returns batches sorted by expiry_date ASC NULLS LAST",
+    "getExpiringBatches() correctly identifies batches expiring within specified days using daysUntil()",
+    "StockMovementRepository records all stock changes with correct type enum values",
+    "Expiring products screen groups by product, color codes by urgency, shows days until expiry",
+    "Damaged goods screen validates quantity against batch.remainingQuantity, uses executeTransaction to atomically update batch, product quantity, and movements",
+    "Stock adjustment screen supports both ADD and REMOVE operations, uses FEFO for removals, generates ADJ-{timestamp} batch numbers for additions",
+    "Dashboard shows real-time counts for low stock, expiring, and out of stock items",
+    "All stock operations update both stock_batches.remaining_quantity AND products.current_quantity in same transaction"
+  ],
+  "verification": [
+    "Run npx tsc --noEmit and npx expo lint to confirm no errors",
+    "Create a product and add stock via adjustment screen with expiry date 20 days from now",
+    "Verify expiring products screen shows this product with correct days until expiry and orange color",
+    "Record damaged goods for 5 units, verify batch.remaining_quantity and product.current_quantity both decrease by 5",
+    "Add stock via adjustment screen, verify new batch created with ADJ-{timestamp} format",
+    "Create two batches for same product with different expiry dates, remove stock and verify FEFO order (earliest expiry deducted first)",
+    "Check dashboard inventory alerts card shows correct counts, tap each alert and verify navigation to correct screen",
+    "Enable airplane mode and repeat all operations to confirm offline functionality"
+  ],
+  "blocked_reason": null,
+  "findings": "Successfully implemented all FEAT-002 components: Created StockBatchRepository with FEFO (First Expiry First Out) allocation logic - allocateStock() sorts batches by expiry_date ASC NULLS LAST. Created StockMovementRepository for recording all stock changes with proper type enum values. Created TanStack Query hooks (useStockBatches, useStockBatch, useExpiringBatches, useExpiredBatches, useStockMovements, useCreateStockMovement). Created expiring products screen (inventory/expiring.tsx) with color coding (red <7 days, orange <14 days, yellow <30 days) and days until expiry display. Created damaged goods screen (inventory/damaged.tsx) with product/batch picker, quantity validation, and executeTransaction for atomic updates to batch, product quantity, and stock movements. Created stock adjustment screen (inventory/adjustment.tsx) supporting both ADD (creates new batch with ADJ-{timestamp} format) and REMOVE (uses FEFO allocation) operations with reason dropdown. Updated dashboard (index.tsx) to show real-time inventory alerts with counts for low stock, expiring products, and out of stock items - all alerts are tappable and navigate to relevant screens. All stock operations use executeTransaction to atomically update stock_batches.remaining_quantity, products.current_quantity, and stock_movements records. TypeScript compilation passes for new code (pre-existing errors in deviceSecurity.ts and securityConfig.ts remain from earlier features). ESLint not configured in project yet. Manual testing required to verify FEFO allocation order, expiring products color coding, damaged goods validation, stock adjustment ADD/REMOVE flows, dashboard navigation, and offline functionality."
+}
