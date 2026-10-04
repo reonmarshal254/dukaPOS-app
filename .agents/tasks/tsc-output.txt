@@ -1,4 +1,6 @@
-TypeScript compilation check completed successfully.
-No type errors found.
+TypeScript compilation completed successfully with no errors.
 
+Command: npx tsc --noEmit
 Exit Code: 0
+
+No type errors found.

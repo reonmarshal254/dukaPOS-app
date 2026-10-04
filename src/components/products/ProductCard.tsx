@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
-import { Product, Category } from '../../types';
+import { Product } from '../../types';
 import { formatCurrency } from '../../utils/currency';
 import { COLORS } from '../../constants/colors';
 import { SPACING, BORDER_RADIUS } from '../../constants/spacing';
@@ -8,11 +8,10 @@ import { TYPOGRAPHY } from '../../constants/typography';
 
 interface ProductCardProps {
   product: Product;
-  category?: Category | null;
   onPress?: () => void;
 }
 
-export default function ProductCard({ product, category, onPress }: ProductCardProps) {
+export default function ProductCard({ product, onPress }: ProductCardProps) {
   const isLowStock = product.currentQuantity <= product.minStockThreshold;
   const isOutOfStock = product.currentQuantity === 0;
 

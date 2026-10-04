@@ -45,11 +45,9 @@ export default function ProductsScreen() {
   };
 
   const renderProductItem = ({ item }: { item: Product }) => {
-    const category = categories.find((cat) => cat.id === item.categoryId);
     return (
       <ProductCard
         product={item}
-        category={category}
         onPress={() => handleProductPress(item.id)}
       />
     );
