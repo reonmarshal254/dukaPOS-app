@@ -42,9 +42,6 @@ type ProductFormData = z.infer<typeof productSchema>;
 export default function AddProductScreen() {
   const router = useRouter();
   const [imageUri, setImageUri] = useState<string | undefined>();
-  const [variants, setVariants] = useState<{ name: string; price: string }[]>([]);
-  const [variantName, setVariantName] = useState('');
-  const [variantPrice, setVariantPrice] = useState('');
   const createProduct = useCreateProduct();
   const { data: categories = [] } = useCategories();
 
@@ -362,66 +359,6 @@ export default function AddProductScreen() {
                 />
               )}
             />
-
-            {/* Variants Section */}
-            <View style={styles.variantsSection}>
-              <Text style={styles.sectionLabel}>Product Variants (Optional)</Text>
-              <Text style={styles.helperText}>
-                Variants allow selling the same product in different sizes or configurations
-              </Text>
-
-              {variants.length > 0 && (
-                <View style={styles.variantsList}>
-                  {variants.map((variant, index) => (
-                    <View key={index} style={styles.variantItem}>
-                      <View style={styles.variantInfo}>
-                        <Text style={styles.variantName}>{variant.name}</Text>
-                        <Text style={styles.variantPrice}>{variant.price}</Text>
-                      </View>
-                      <TouchableOpacity
-                        onPress={() =>
-                          setVariants(variants.filter((_, i) => i !== index))
-                        }
-                        style={styles.removeButton}
-                      >
-                        <Text style={styles.removeButtonText}>×</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              <View style={styles.addVariantRow}>
-                <Input
-                  label=""
-                  placeholder="Variant name (e.g., Small)"
-                  value={variantName}
-                  onChangeText={setVariantName}
-                  style={styles.variantInput}
-                />
-                <Input
-                  label=""
-                  placeholder="Price"
-                  value={variantPrice}
-                  onChangeText={setVariantPrice}
-                  keyboardType="decimal-pad"
-                  style={styles.variantInput}
-                />
-              </View>
-
-              <TouchableOpacity
-                style={styles.addVariantButton}
-                onPress={() => {
-                  if (variantName.trim() && variantPrice.trim()) {
-                    setVariants([...variants, { name: variantName, price: variantPrice }]);
-                    setVariantName('');
-                    setVariantPrice('');
-                  }
-                }}
-              >
-                <Text style={styles.addVariantButtonText}>+ Add Variant</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </ScrollView>
 
@@ -550,84 +487,5 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
-  },
-  variantsSection: {
-    marginTop: SPACING.lg,
-    paddingTop: SPACING.lg,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-  },
-  sectionLabel: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  helperText: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.md,
-  },
-  variantsList: {
-    marginBottom: SPACING.md,
-  },
-  variantItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    marginBottom: SPACING.sm,
-  },
-  variantInfo: {
-    flex: 1,
-  },
-  variantName: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  variantPrice: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.textSecondary,
-  },
-  removeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: BORDER_RADIUS.full,
-    backgroundColor: COLORS.error,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: SPACING.md,
-  },
-  removeButtonText: {
-    fontSize: TYPOGRAPHY.fontSize['2xl'],
-    color: COLORS.textInverse,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-  },
-  addVariantRow: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-    marginBottom: SPACING.sm,
-  },
-  variantInput: {
-    flex: 1,
-    marginBottom: 0,
-  },
-  addVariantButton: {
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.lg,
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    alignItems: 'center',
-  },
-  addVariantButtonText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.primary,
   },
 });
