@@ -47,6 +47,7 @@ export function useCreateProduct() {
       sellingPrice: number;
       minStockThreshold?: number;
       unit?: string;
+      initialQuantity?: number;
     }) => productRepository.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });

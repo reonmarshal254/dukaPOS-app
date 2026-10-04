@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Image } from 'expo-image';
 import { Product, Category } from '../../types';
 import { formatCurrency } from '../../utils/currency';
 import { COLORS } from '../../constants/colors';
@@ -15,6 +16,8 @@ export default function ProductCard({ product, category, onPress }: ProductCardP
   const isLowStock = product.currentQuantity <= product.minStockThreshold;
   const isOutOfStock = product.currentQuantity === 0;
 
+  const imageSource = product.localImagePath || product.imageUrl;
+
   return (
     <TouchableOpacity
       style={styles.card}
@@ -22,44 +25,51 @@ export default function ProductCard({ product, category, onPress }: ProductCardP
       activeOpacity={0.7}
       disabled={!onPress}
     >
-      <View style={styles.content}>
-        <View style={styles.info}>
-          <Text style={styles.name} numberOfLines={1}>
-            {product.name}
-          </Text>
-          
-          {category && (
-            <Text style={styles.category} numberOfLines={1}>
-              {category.name}
-            </Text>
-          )}
-          
-          <View style={styles.priceRow}>
-            <Text style={styles.price}>
-              {formatCurrency(product.sellingPrice)}
-            </Text>
-            <Text style={styles.stock}>
-              Stock: {product.currentQuantity} {product.unit}
-            </Text>
+      {/* Image Section */}
+      <View style={styles.imageContainer}>
+        {imageSource ? (
+          <Image
+            source={{ uri: imageSource }}
+            style={styles.image}
+            contentFit="cover"
+            transition={200}
+          />
+        ) : (
+          <View style={styles.imagePlaceholder}>
+            <Text style={styles.placeholderEmoji}>📦</Text>
           </View>
-        </View>
+        )}
+      </View>
 
-        <View style={styles.badges}>
-          {isOutOfStock && (
-            <View style={[styles.badge, styles.badgeError]}>
-              <Text style={[styles.badgeText, styles.badgeErrorText]}>
-                Out of Stock
-              </Text>
-            </View>
-          )}
-          {!isOutOfStock && isLowStock && (
-            <View style={[styles.badge, styles.badgeWarning]}>
-              <Text style={[styles.badgeText, styles.badgeWarningText]}>
-                Low Stock
-              </Text>
-            </View>
-          )}
-        </View>
+      {/* Content Section */}
+      <View style={styles.content}>
+        <Text style={styles.name} numberOfLines={2} ellipsizeMode="tail">
+          {product.name}
+        </Text>
+        
+        <Text style={styles.price}>
+          {formatCurrency(product.sellingPrice)}
+        </Text>
+
+        {/* Badges */}
+        {(isOutOfStock || isLowStock) && (
+          <View style={styles.badges}>
+            {isOutOfStock && (
+              <View style={[styles.badge, styles.badgeError]}>
+                <Text style={[styles.badgeText, styles.badgeErrorText]}>
+                  Out of Stock
+                </Text>
+              </View>
+            )}
+            {!isOutOfStock && isLowStock && (
+              <View style={[styles.badge, styles.badgeWarning]}>
+                <Text style={[styles.badgeText, styles.badgeWarningText]}>
+                  Low Stock
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -67,47 +77,52 @@ export default function ProductCard({ product, category, onPress }: ProductCardP
 
 const styles = StyleSheet.create({
   card: {
+    flex: 1,
     backgroundColor: COLORS.card,
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
     borderColor: COLORS.cardBorder,
-    marginBottom: SPACING.md,
     overflow: 'hidden',
+  },
+  imageContainer: {
+    width: '100%',
+    aspectRatio: 1,
+    backgroundColor: COLORS.surface,
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+  },
+  imagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: COLORS.surfaceDark,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  placeholderEmoji: {
+    fontSize: 48,
   },
   content: {
     padding: SPACING.md,
   },
-  info: {
-    marginBottom: SPACING.sm,
-  },
   name: {
-    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontSize: TYPOGRAPHY.fontSize.base,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.text,
     marginBottom: SPACING.xs,
-  },
-  category: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
-  },
-  priceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    minHeight: TYPOGRAPHY.fontSize.base * 2 * 1.5, // 2 lines with line-height
   },
   price: {
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.primary,
-  },
-  stock: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.textSecondary,
+    marginBottom: SPACING.xs,
   },
   badges: {
     flexDirection: 'row',
     gap: SPACING.xs,
+    marginTop: SPACING.xs,
   },
   badge: {
     paddingHorizontal: SPACING.sm,
