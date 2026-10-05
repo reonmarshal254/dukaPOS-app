@@ -80,33 +80,86 @@ export class ProductRepository {
     unit?: string;
     initialQuantity?: number;
   }): Promise<Product> {
+    // Check for duplicate barcode
+    if (data.barcode) {
+      const existing = await this.getByBarcode(data.barcode);
+      if (existing) {
+        throw new Error(`Product with barcode "${data.barcode}" already exists: ${existing.name}`);
+      }
+    }
+
     const id = generateUUID();
     const now = getCurrentDateTime();
+    const initialQty = data.initialQuantity ?? 0;
 
-    await executeWrite(
-      `INSERT INTO ${TABLES.PRODUCTS} (
-        id, name, description, category_id, barcode, image_url, local_image_path,
-        purchase_price, selling_price, current_quantity, min_stock_threshold,
-        unit, is_active, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        data.name,
-        data.description || null,
-        data.categoryId || null,
-        data.barcode || null,
-        data.imageUrl || null,
-        data.localImagePath || null,
-        data.purchasePrice,
-        data.sellingPrice,
-        data.initialQuantity ?? 0,
-        data.minStockThreshold || 10,
-        data.unit || 'pcs',
-        1, // is_active
-        now,
-        now,
-      ]
-    );
+    await executeTransaction(async (db) => {
+      // Insert product
+      await db.runAsync(
+        `INSERT INTO ${TABLES.PRODUCTS} (
+          id, name, description, category_id, barcode, image_url, local_image_path,
+          purchase_price, selling_price, current_quantity, min_stock_threshold,
+          unit, is_active, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          id,
+          data.name,
+          data.description || null,
+          data.categoryId || null,
+          data.barcode || null,
+          data.imageUrl || null,
+          data.localImagePath || null,
+          data.purchasePrice,
+          data.sellingPrice,
+          initialQty,
+          data.minStockThreshold || 10,
+          data.unit || 'pcs',
+          1, // is_active
+          now,
+          now,
+        ]
+      );
+
+      // Create initial stock batch if quantity > 0
+      if (initialQty > 0) {
+        const batchId = generateUUID();
+        
+        await db.runAsync(
+          `INSERT INTO ${TABLES.STOCK_BATCHES} (
+            id, product_id, supplier_id, batch_number, received_quantity, remaining_quantity,
+            purchase_cost, manufacturing_date, expiry_date, received_at, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            batchId,
+            id,
+            null,                     // supplier_id
+            `INITIAL-${Date.now()}`,
+            initialQty,               // received_quantity
+            initialQty,               // remaining_quantity
+            data.purchasePrice,       // purchase_cost
+            null,                     // manufacturing_date
+            null,                     // expiry_date
+            now,                      // received_at
+            now,                      // created_at
+          ]
+        );
+
+        // Record stock movement
+        await db.runAsync(
+          `INSERT INTO ${TABLES.STOCK_MOVEMENTS} (
+            id, product_id, batch_id, type, quantity, notes, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            generateUUID(),
+            id,
+            batchId,
+            'PURCHASE',
+            initialQty,
+            'Initial stock',
+            now,
+          ]
+        );
+      }
+    });
 
     return {
       id,
@@ -118,7 +171,7 @@ export class ProductRepository {
       localImagePath: data.localImagePath,
       purchasePrice: data.purchasePrice,
       sellingPrice: data.sellingPrice,
-      currentQuantity: data.initialQuantity ?? 0,
+      currentQuantity: initialQty,
       minStockThreshold: data.minStockThreshold || 10,
       unit: data.unit || 'pcs',
       isActive: true,
@@ -182,6 +235,11 @@ export class ProductRepository {
     if (data.unit !== undefined) {
       updates.push('unit = ?');
       values.push(data.unit);
+    }
+
+    if (data.currentQuantity !== undefined) {
+      updates.push('current_quantity = ?');
+      values.push(data.currentQuantity);
     }
 
     if (data.isActive !== undefined) {

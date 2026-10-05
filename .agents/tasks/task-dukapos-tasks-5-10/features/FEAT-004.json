@@ -1,0 +1,48 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Customer & Supplier Management: Create CustomerRepository and SupplierRepository, implement customer and supplier list/add/edit screens, purchase recording screen with batch info, customer debt tracking with partial payments, and customer ledger view. Enables credit sales and purchase management.",
+  "status": "pending",
+  "steps": [
+    "Create src/services/repositories/customerRepository.ts following productRepository pattern. Methods: getAll(options?: {search?}), getById(id), create(data: {name, phone?, address?, notes?}), update(id, data), delete(id) (soft delete if has balance, hard delete if balance=0), getCustomersWithDebt() filtering current_balance > 0, updateBalance(customerId, newBalance) helper.",
+    "Create src/services/repositories/supplierRepository.ts with same methods: getAll(search?), getById(id), create(data: {name, phone?, email?, address?, notes?}), update(id, data), delete(id).",
+    "Create src/services/repositories/purchaseRepository.ts. Methods: getAll(filters?: {supplierId?, startDate?, endDate?}), getById(id), create(data), getPurchaseWithItems(id) joining purchase_items. Create will use executeTransaction to: insert purchase record, insert purchase_items, create stock_batches for each item, update products.current_quantity, record PURCHASE stock movements.",
+    "Create src/services/repositories/customerLedgerRepository.ts. Methods: getAll(customerId, filters?: {startDate?, endDate?}), create(data: {customerId, type: 'CREDIT_SALE' | 'PAYMENT', amount, balance, referenceId?, notes?}). Ledger maintains running balance of customer debt.",
+    "Create src/hooks/useCustomers.ts with TanStack Query hooks: useCustomers(search?), useCustomer(id), useCustomersWithDebt(), useCreateCustomer(), useUpdateCustomer(), useDeleteCustomer(). Create src/hooks/useSuppliers.ts with parallel hooks for suppliers.",
+    "Create src/hooks/usePurchases.ts with usePurchases(filters?), usePurchase(id), usePurchaseWithItems(id), useCreatePurchase(). Create src/hooks/useCustomerLedger.ts with useCustomerLedger(customerId, filters?), useRecordPayment() mutation.",
+    "Create src/app/(tabs)/customers/index.tsx screen with FlatList of customers. Each card shows name, phone, current balance (formatted with formatCurrency, highlight in red if > 0). Search bar at top. FAB to navigate to add customer screen. Tap card to view customer details.",
+    "Create src/app/(tabs)/customers/add.tsx and src/app/(tabs)/customers/[id].tsx for add/edit customer. Form: name (required), phone, address, notes. Use Input components and Button. Call useCreateCustomer or useUpdateCustomer. Edit screen includes delete button (validate current_balance === 0 before hard delete, otherwise soft delete).",
+    "Create src/app/(tabs)/suppliers/index.tsx and src/app/(tabs)/suppliers/add.tsx and src/app/(tabs)/suppliers/[id].tsx parallel to customer screens. Form: name (required), phone, email, address, notes.",
+    "Create src/app/(tabs)/purchases/add.tsx screen for recording purchases. Form: supplier picker (from useSuppliers), date picker (default today), notes. Dynamic item list: each row has product picker (from useProducts), quantity input, unit cost input (convert to minor units), batch info (manufacturing date, expiry date, received quantity = quantity). Add/remove item buttons. Calculate total. Amount paid input. On submit: executeTransaction to: insert purchase, insert purchase_items, create stock_batches for each item with batch_number=PURCH-{purchaseId}-{index}, update products.current_quantity += quantity, record PURCHASE stock movements for each item.",
+    "Create src/app/(tabs)/customers/[id]/ledger.tsx screen showing customer ledger. Load with useCustomerLedger(customerId). FlatList showing: date (formatDateTime), type (CREDIT_SALE or PAYMENT), amount, running balance, reference (sale receipt number or payment reference), notes. Color code: credit sales in red, payments in green. Show current balance at top. Include 'Record Payment' button.",
+    "Create src/components/customers/PaymentModal.tsx for recording partial debt payments. Form: amount input (validate <= customer.current_balance), payment method (CASH, MOBILE_MONEY), reference (if mobile money), notes. On submit: executeTransaction to: insert payment record with customer_id (no sale_id), insert customer_ledger entry type='PAYMENT' with amount as negative, update customers.current_balance -= amount. Close modal and refresh ledger.",
+    "Update checkout screen from FEAT-003 to enable credit sales: when CREDIT payment method selected, show customer picker (useCustomers). On checkout with credit: set sale.customer_id, sale.credit_amount = remaining unpaid amount, sale.amount_paid = sum of other payments, create customer_ledger entry, update customer.current_balance."
+  ],
+  "acceptance_criteria": [
+    "CustomerRepository and SupplierRepository provide full CRUD operations with search",
+    "Customer list shows name, phone, and debt balance highlighted if > 0",
+    "Supplier list shows name and contact info",
+    "Add/edit screens for customers and suppliers validate required fields (name)",
+    "Customer delete validates balance = 0 for hard delete, otherwise soft delete",
+    "Purchase recording screen captures supplier, items with batch info (expiry, manufacturing date, costs), and creates stock batches atomically",
+    "Purchase transaction updates products.current_quantity, creates stock_batches with batch_number PURCH-{id}-{index}, records PURCHASE movements",
+    "Customer ledger shows running balance with CREDIT_SALE and PAYMENT entries, color coded",
+    "PaymentModal records partial debt payments, updates customer balance and ledger atomically",
+    "Credit sales in checkout flow assign customer, create ledger entry, update customer balance",
+    "All financial amounts in minor units, displayed with formatCurrency"
+  ],
+  "verification": [
+    "Run npx tsc --noEmit and npx expo lint to confirm no errors",
+    "Create a customer with name and phone, verify appears in customer list with balance 0",
+    "Create a supplier, verify appears in supplier list",
+    "Record a purchase: select supplier, add 2 products with expiry dates and costs, verify purchase created, stock_batches created with PURCH-{id}-{index} format, products.current_quantity increased, PURCHASE movements recorded",
+    "Complete a credit sale from POS: add items to cart, checkout with CREDIT, select customer, verify sale created with customer_id, customer_ledger entry created type=CREDIT_SALE, customer.current_balance increased by credit amount",
+    "View customer ledger, verify credit sale appears with positive balance",
+    "Record a partial payment from ledger screen, enter amount < balance, select CASH, verify payment recorded, customer_ledger entry created type=PAYMENT, customer.current_balance decreased",
+    "Attempt to delete customer with balance > 0, verify soft delete or rejection",
+    "Create customer with balance 0, delete, verify hard delete succeeds",
+    "Enable airplane mode, create customer and supplier, verify offline functionality"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

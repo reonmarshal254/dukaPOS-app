@@ -1,0 +1,47 @@
+{
+  "id": "FEAT-005",
+  "type": "feat",
+  "description": "Reports & Expenses: Implement sales reports (today, yesterday, week, month, custom range), profit calculation using COGS from sale_items, inventory reports (current stock, low stock, expiring, expired), customer debt report, expense recording, and net profit calculation (revenue - COGS - expenses).",
+  "status": "pending",
+  "steps": [
+    "Create src/services/repositories/expenseRepository.ts. Methods: getAll(filters?: {category?, startDate?, endDate?}), getById(id), create(data: {category, description, amount (in minor units), paymentMethod: PaymentMethod, notes?}), update(id, data), delete(id). Categories: 'Rent', 'Utilities', 'Salaries', 'Transport', 'Marketing', 'Other'.",
+    "Create src/hooks/useExpenses.ts with TanStack Query hooks: useExpenses(filters?), useExpense(id), useCreateExpense(), useUpdateExpense(), useDeleteExpense().",
+    "Create src/services/reports/salesReports.ts utility module. Export functions: getSalesReport(startDate, endDate) returning {totalSales: number, totalRevenue: number (sum of sale.total), totalCOGS: number (sum of sale_items.cost_of_goods_sold), grossProfit: number (revenue - COGS), totalCash: number (sum of payments where method=CASH), totalMobileMoney: number, totalCredit: number, topProducts: {productId, productName, quantitySold, revenue}[]}. Use executeQuery to aggregate from sales, sale_items, payments tables with date filtering (created_at >= startDate AND created_at < endDate).",
+    "Add helper functions to salesReports.ts: getTodaySales() calling getSalesReport(getStartOfDay(), getEndOfDay()), getYesterdaySales() using subtractDays, getWeekSales() (last 7 days), getMonthSales() (last 30 days). Use datetime utils.",
+    "Create src/services/reports/inventoryReports.ts. Functions: getCurrentStock() returning products with current_quantity and value (current_quantity * purchase_price), getLowStockProducts() calling productRepository.getLowStock(), getExpiringProducts(days=30) calling stockBatchRepository.getExpiringBatches(), getExpiredProducts() calling getExpiredBatches().",
+    "Create src/services/reports/debtReports.ts. Function: getCustomerDebtReport() returning customers with current_balance > 0, sorted by balance DESC, with total outstanding debt sum.",
+    "Create src/app/(tabs)/reports.tsx screen. Tabbed interface (or sections): Sales, Inventory, Expenses, Customers. Sales tab: date range picker (Today/Yesterday/Week/Month/Custom with start-end date pickers). Display: Total Sales count, Revenue (formatCurrency), COGS, Gross Profit, breakdown by payment method (Cash/Mobile/Credit). Top Products list. Use getSalesReport with selected date range. Inventory tab: Summary cards for total products, low stock count (link to list), expiring count (link to list), out of stock count. Current stock value. Expenses tab: date range picker. List of expenses with category, description, amount. Total expenses sum. FAB to add expense. Customers tab: list of customers with debt, showing name and balance. Total debt sum.",
+    "Create src/app/(tabs)/reports/sales-detail.tsx screen for detailed sales with date range, showing individual sale records in list: receipt number, date/time, total, payment methods. Tap to view sale details (receipt).",
+    "Create src/app/(tabs)/expenses/add.tsx screen for recording expenses. Form: category dropdown, description input, amount input (convert to minor units), payment method radio, notes. Use React Hook Form + Zod. Call useCreateExpense mutation. Navigate back on success.",
+    "Update Dashboard (src/app/(tabs)/index.tsx) to show key metrics: Today's sales revenue (from getTodaySales()), Today's transactions count, Today's gross profit, Outstanding customer debt total (from getCustomerDebtReport()). Use formatCurrency for all amounts."
+  ],
+  "acceptance_criteria": [
+    "ExpenseRepository provides CRUD operations for expenses with category filtering",
+    "getSalesReport() aggregates sales data for date range: revenue, COGS, gross profit, payment method breakdown, top products",
+    "Date range helper functions (getTodaySales, getYesterdaySales, etc.) use datetime utils correctly",
+    "Inventory reports return current stock value, low stock, expiring, and expired products",
+    "Customer debt report returns customers with balance > 0, sorted by balance DESC, with total debt",
+    "Reports screen has tabbed/sectioned UI for Sales, Inventory, Expenses, Customers",
+    "Sales report shows date range selector, key metrics, payment breakdown, top products list",
+    "Inventory report shows summary cards with counts and navigation to detail screens",
+    "Expenses can be recorded with category, description, amount, payment method",
+    "Dashboard displays today's metrics: sales revenue, transaction count, gross profit, outstanding debt",
+    "All amounts displayed with formatCurrency, all storage in minor units"
+  ],
+  "verification": [
+    "Run npx tsc --noEmit and npx expo lint to confirm no errors",
+    "Complete 2-3 sales with different payment methods (cash, mobile money)",
+    "Navigate to Reports tab, select 'Today' date range, verify sales report shows correct revenue, transaction count, payment method breakdown",
+    "Verify gross profit = revenue - COGS (check that COGS is calculated from sale_items.cost_of_goods_sold)",
+    "Check top products list shows products from today's sales with quantities",
+    "Switch to Inventory tab, verify low stock count matches productRepository.getLowStock().length",
+    "Navigate to Expenses section, add expense for 'Rent' category with 50000 (KSh 500.00), verify it appears in expense list",
+    "View expenses report with custom date range, verify filtering works",
+    "View Customers tab in reports, verify only customers with balance > 0 appear, sorted by debt amount DESC",
+    "Return to Dashboard, verify today's metrics update after new sale: revenue increases, transaction count increments",
+    "Compare dashboard gross profit with reports sales tab gross profit, verify they match",
+    "Enable airplane mode, record expense, verify it works offline"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

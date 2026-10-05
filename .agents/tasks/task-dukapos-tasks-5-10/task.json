@@ -1,0 +1,14 @@
+{
+  "task_id": "task-dukapos-tasks-5-10",
+  "task_description": "Implement Product & Category Management, Inventory & Stock Management, POS & Checkout System, Customer & Supplier Management, Reports & Expenses, and Receipt Generation for DukaPOS offline-first grocery POS app",
+  "status": "pending",
+  "feature_order": [
+    "FEAT-001",
+    "FEAT-002",
+    "FEAT-003",
+    "FEAT-004",
+    "FEAT-005",
+    "FEAT-006"
+  ],
+  "blocked_reason": null
+}

@@ -7,8 +7,9 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
+  Pressable,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -17,7 +18,7 @@ import Button from '../common/Button';
 import { useCreateCategory, useUpdateCategory } from '../../hooks/useCategories';
 import { Category } from '../../types';
 import { COLORS } from '../../constants/colors';
-import { SPACING, BORDER_RADIUS } from '../../constants/spacing';
+import { SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/spacing';
 import { TYPOGRAPHY } from '../../constants/typography';
 
 const categorySchema = z.object({
@@ -40,6 +41,8 @@ export default function CategoryModal({
 }: CategoryModalProps) {
   const createCategory = useCreateCategory();
   const updateCategory = useUpdateCategory();
+  // Safe area insets — gives us the Android nav-bar height via bottom
+  const insets = useSafeAreaInsets();
 
   const {
     control,
@@ -48,18 +51,14 @@ export default function CategoryModal({
     formState: { errors },
   } = useForm<CategoryFormData>({
     resolver: zodResolver(categorySchema),
-    defaultValues: {
-      name: '',
-      description: '',
-    },
+    defaultValues: { name: '', description: '' },
   });
 
-  // Reset form when modal opens with category data
   useEffect(() => {
     if (visible) {
       reset({
-        name: category?.name || '',
-        description: category?.description || '',
+        name: category?.name ?? '',
+        description: category?.description ?? '',
       });
     }
   }, [visible, category, reset]);
@@ -67,22 +66,16 @@ export default function CategoryModal({
   const onSubmit = async (data: CategoryFormData) => {
     try {
       if (category) {
-        // Update existing category
         await updateCategory.mutateAsync({
           id: category.id,
-          data: {
-            name: data.name,
-            description: data.description || undefined,
-          },
+          data: { name: data.name, description: data.description || undefined },
         });
       } else {
-        // Create new category
         await createCategory.mutateAsync({
           name: data.name,
           description: data.description || undefined,
         });
       }
-
       reset();
       onClose();
     } catch (error) {
@@ -90,146 +83,206 @@ export default function CategoryModal({
     }
   };
 
-  const handleClose = () => {
-    reset();
-    onClose();
-  };
-
+  const handleClose = () => { reset(); onClose(); };
   const isLoading = createCategory.isPending || updateCategory.isPending;
+
+  // Bottom padding: whichever is larger — the system nav bar or our baseline
+  const safeBottom = Math.max(insets.bottom, SPACING.lg);
 
   return (
     <Modal
       visible={visible}
       animationType="slide"
       transparent
+      statusBarTranslucent           // lets the gradient show under the status bar
       onRequestClose={handleClose}
     >
-      <View style={styles.overlay}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.keyboardView}
-        >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalContent}>
-              <View style={styles.header}>
-                <Text style={styles.title}>
-                  {category ? 'Edit Category' : 'Add Category'}
-                </Text>
-                <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-                  <Text style={styles.closeButtonText}>✕</Text>
-                </TouchableOpacity>
-              </View>
+      {/* Dim backdrop — tap to dismiss */}
+      <Pressable style={styles.backdrop} onPress={handleClose} />
 
-              <ScrollView style={styles.form}>
-                <Controller
-                  control={control}
-                  name="name"
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <Input
-                      label="Category Name"
-                      placeholder="e.g., Beverages"
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                      error={errors.name?.message}
-                      required
-                    />
-                  )}
-                />
+      {/*
+        KeyboardAvoidingView wraps only the sheet.
+        On Android we use 'padding' so the sheet lifts above the keyboard
+        while still sitting above the nav bar.
+      */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+        style={styles.kavWrapper}
+        keyboardVerticalOffset={0}
+      >
+        <View style={[styles.sheet, { paddingBottom: safeBottom }]}>
+          {/* Drag handle */}
+          <View style={styles.handle} />
 
-                <Controller
-                  control={control}
-                  name="description"
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <Input
-                      label="Description (Optional)"
-                      placeholder="Brief description of the category"
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                      multiline
-                      numberOfLines={3}
-                      style={styles.textArea}
-                    />
-                  )}
-                />
-              </ScrollView>
-
-              <View style={styles.footer}>
-                <Button
-                  title="Cancel"
-                  onPress={handleClose}
-                  variant="outline"
-                  style={styles.cancelButton}
-                  disabled={isLoading}
-                />
-                <Button
-                  title={category ? 'Update' : 'Create'}
-                  onPress={handleSubmit(onSubmit)}
-                  loading={isLoading}
-                  disabled={isLoading}
-                  style={styles.submitButton}
-                />
-              </View>
+          {/* Header */}
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.title}>
+                {category ? 'Edit Category' : 'New Category'}
+              </Text>
+              <Text style={styles.subtitle}>
+                {category
+                  ? 'Update category details'
+                  : 'Organise your products with categories'}
+              </Text>
             </View>
+            <TouchableOpacity
+              onPress={handleClose}
+              style={styles.closeBtn}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Text style={styles.closeBtnText}>✕</Text>
+            </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
-      </View>
+
+          {/* Form fields */}
+          <View style={styles.form}>
+            <Controller
+              control={control}
+              name="name"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Category Name"
+                  placeholder="e.g., Beverages"
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  error={errors.name?.message}
+                  required
+                  autoFocus
+                />
+              )}
+            />
+
+            <Controller
+              control={control}
+              name="description"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Description (Optional)"
+                  placeholder="Short description of this category"
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  multiline
+                  numberOfLines={2}
+                  style={styles.textArea}
+                />
+              )}
+            />
+          </View>
+
+          {/* Action buttons — always above the nav bar */}
+          <View style={styles.actions}>
+            <Button
+              title="Cancel"
+              onPress={handleClose}
+              variant="outline"
+              style={styles.btnHalf}
+              disabled={isLoading}
+            />
+            <Button
+              title={category ? 'Update' : 'Create'}
+              onPress={handleSubmit(onSubmit)}
+              loading={isLoading}
+              disabled={isLoading}
+              style={styles.btnHalf}
+            />
+          </View>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: COLORS.overlay,
-    justifyContent: 'flex-end',
+  // Semi-transparent backdrop — fills screen behind the sheet
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
-  keyboardView: {
-    justifyContent: 'flex-end',
+
+  // KeyboardAvoidingView anchored to the bottom
+  kavWrapper: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
-  modalContainer: {
-    backgroundColor: COLORS.background,
-    borderTopLeftRadius: BORDER_RADIUS.xl,
-    borderTopRightRadius: BORDER_RADIUS.xl,
-    maxHeight: '80%',
+
+  // The bottom sheet itself
+  sheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.sm,
+    ...SHADOWS.lg,
   },
-  modalContent: {
-    padding: SPACING.lg,
+
+  // Drag handle
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.divider,
+    alignSelf: 'center',
+    marginBottom: SPACING.md,
   },
+
+  // Header row
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: SPACING.lg,
   },
   title: {
     fontSize: TYPOGRAPHY.fontSize.xl,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.text,
+    marginBottom: 2,
   },
-  closeButton: {
-    padding: SPACING.xs,
-  },
-  closeButtonText: {
-    fontSize: TYPOGRAPHY.fontSize['2xl'],
+  subtitle: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
     color: COLORS.textSecondary,
   },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  closeBtnText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+
+  // Form
   form: {
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
   },
   textArea: {
-    minHeight: 80,
+    minHeight: 72,
     textAlignVertical: 'top',
   },
-  footer: {
+
+  // Actions row
+  actions: {
     flexDirection: 'row',
     gap: SPACING.md,
   },
-  cancelButton: {
+  btnHalf: {
     flex: 1,
-  },
-  submitButton: {
-    flex: 1,
+    marginTop: 0,
   },
 });

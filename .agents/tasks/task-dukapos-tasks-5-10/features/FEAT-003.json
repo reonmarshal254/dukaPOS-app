@@ -1,0 +1,45 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "POS & Checkout System: Create Zustand cart store, POS screen with product grid/search and cart display, checkout screen with payment method selection and split payments, atomic checkout transaction using FEFO stock deduction, receipt number generation (RCP-YYYYMMDD-NNNN format). This is the core sales flow.",
+  "status": "pending",
+  "steps": [
+    "Create src/stores/cartStore.ts using Zustand v5. State: items: CartItem[] (from types/index.ts), discount: number (percentage 0-100). Actions: addItem(product, quantity=1), updateQuantity(productId, quantity), removeItem(productId), setDiscount(percentage), clearCart(), getSubtotal() computing sum of item totals, getTotal() applying discount to subtotal. Each CartItem has: {product: Product, quantity: number, discount: number (item-level %), total: number (calculated as product.sellingPrice * quantity * (1 - discount/100))}.",
+    "Create src/services/repositories/saleRepository.ts. Methods: getAll(filters?: {customerId?, startDate?, endDate?}), getById(id), create(data), getSaleWithDetails(id) joining sale_items and payments. Create src/services/repositories/paymentRepository.ts with getAll(filters?), create(data). Use snake_case to camelCase mapping like productRepository.",
+    "Create src/hooks/useSales.ts with TanStack Query hooks: useSales(filters?), useSale(id), useSaleWithDetails(id), useCreateSale() mutation. Create src/hooks/usePayments.ts with usePayments(filters?), useCreatePayment() mutation.",
+    "Update src/app/(tabs)/pos.tsx to implement POS screen. Top half: Product grid showing ProductCard components (reuse from FEAT-001) in 2-3 column grid, with search bar above. Bottom half (or right side on tablets): Cart display showing cart items with quantity steppers, item totals, subtotal, discount input, and final total. Add to cart button on each product card. Floating checkout button navigating to checkout screen when cart has items. Use cartStore for all cart operations.",
+    "Create src/components/pos/CartItem.tsx component displaying product name, unit price (formatted with formatCurrency), quantity with - and + buttons (call cartStore.updateQuantity), item total, and remove button (cartStore.removeItem). Show discount if applied at item level.",
+    "Create src/app/(tabs)/pos/checkout.tsx screen. Display cart summary at top (items, subtotal, discount, total from cartStore). Payment section: radio buttons for CASH, MOBILE_MONEY, CREDIT (from PaymentMethod enum). For CASH: amount tendered input, calculate and show change (amountTendered - total, must be >= total). For MOBILE_MONEY: reference number input. For CREDIT: customer picker (from useCustomers hook - will be created in FEAT-004, for now show placeholder 'Coming soon'). Support split payments: 'Add another payment' button to combine multiple payment methods (e.g., partial CASH + partial MOBILE_MONEY). Complete Sale button.",
+    "Implement checkout transaction logic in checkout screen. On Complete Sale: (1) Generate receipt number in format RCP-YYYYMMDD-NNNN (e.g., RCP-20240103-0001) - query sales table for today's count, increment. (2) Use executeTransaction() to atomically: (a) For each cart item, call stockBatchRepository.allocateStock(productId, quantity) to get FEFO batch allocations. (b) Deduct from each batch's remaining_quantity. (c) Insert sale record with receipt_number, totals, customer_id (if credit), sync_status='PENDING'. (d) Insert sale_items records with batch_id and cost_of_goods_sold from batch allocation. (e) Insert payment records with sale_id. (f) If credit sale, insert customer_ledger entry type='CREDIT_SALE', update customers.current_balance. (g) Update products.current_quantity for each product. (h) Insert stock_movements for each product with type='SALE'. (3) On success: clear cart (cartStore.clearCart()), show success message with receipt number, navigate to receipt screen or back to POS.",
+    "Add error handling for insufficient stock during checkout. Before executeTransaction, validate each cart item quantity against product.current_quantity. If insufficient, show alert: 'Insufficient stock for {product.name}. Available: {current_quantity}, Requested: {quantity}'. Prevent checkout until resolved."
+  ],
+  "acceptance_criteria": [
+    "cartStore manages cart state with add, update, remove, and clear operations",
+    "POS screen shows product grid with search, cart display with item quantities and totals",
+    "Cart items show quantity steppers, item totals calculated from selling price * quantity",
+    "Checkout screen displays cart summary and payment method selection (CASH, MOBILE_MONEY, CREDIT placeholder)",
+    "Cash payments calculate and validate change (tendered amount >= total)",
+    "Mobile money payments capture reference number",
+    "Receipt number format is RCP-YYYYMMDD-NNNN with auto-incrementing sequence number per day",
+    "Checkout transaction is atomic using executeTransaction: allocates stock via FEFO, deducts batches, creates sale + sale_items + payments, updates product quantities, records stock movements",
+    "Insufficient stock errors prevent checkout with clear error messages showing available vs requested quantities",
+    "After successful checkout, cart clears and user can immediately start new sale"
+  ],
+  "verification": [
+    "Run npx tsc --noEmit and npx expo lint to confirm no errors",
+    "Navigate to POS tab, search for a product, add to cart, verify cart shows item with correct price",
+    "Update quantity with + button, verify total updates correctly",
+    "Apply cart-level discount, verify final total reflects discount",
+    "Proceed to checkout, select CASH, enter tendered amount less than total, verify error",
+    "Enter sufficient cash, complete sale, verify receipt number format RCP-YYYYMMDD-0001",
+    "Check sales table for new record, verify sale_items have batch_id and cost_of_goods_sold from FEFO allocation",
+    "Check stock_batches table, verify remaining_quantity decreased for batch with earliest expiry",
+    "Check products table, verify current_quantity decreased by sale quantity",
+    "Check stock_movements table, verify SALE movement recorded with correct reference_id (sale_id)",
+    "Attempt to sell more than available stock, verify checkout blocked with clear error message",
+    "Complete second sale same day, verify receipt number is RCP-YYYYMMDD-0002",
+    "Enable airplane mode, complete sale, verify it works offline and sync_status is PENDING"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

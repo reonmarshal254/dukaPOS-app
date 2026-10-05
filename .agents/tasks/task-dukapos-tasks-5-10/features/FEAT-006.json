@@ -1,0 +1,43 @@
+{
+  "id": "FEAT-006",
+  "type": "feat",
+  "description": "Receipt Generation: Generate PDF receipts using expo-print with business info header, itemized sale details, payment breakdown, and totals. Enable sharing/printing via expo-sharing. Create receipt history screen for viewing past sales receipts.",
+  "status": "pending",
+  "steps": [
+    "Create src/services/print/receiptTemplate.ts module. Export generateReceiptHTML(sale: SaleWithDetails, business: Business) function returning HTML string. Template structure: Business name (from business.name), location, phone at top centered. Horizontal line. Receipt number, date/time (formatDateTime). Horizontal line. Table: Item column (product name), Qty, Price (formatCurrency of unit_price), Total. Show all sale_items. Horizontal line. Subtotal, Discount (if > 0), Total (bold/larger). Horizontal line. Payments section: list each payment with method and amount. If cash, show 'Tendered' and 'Change'. Horizontal line. Footer: 'Thank you for your business!', 'Powered by DukaPOS'. Use inline CSS styling: font-family: monospace, max-width: 300px (from RECEIPT_CONFIG), font-size: 12px, padding. Center header/footer, left-align items table.",
+    "Create src/services/print/printService.ts. Export printReceipt(saleId: string) function. Steps: (1) Load sale with saleRepository.getSaleWithDetails(saleId). (2) Load business from businesses table (assume single business, query 'SELECT * FROM businesses LIMIT 1'). (3) Generate HTML with generateReceiptHTML(sale, business). (4) Use expo-print: const { uri } = await Print.printToFileAsync({ html, width: RECEIPT_CONFIG.MAX_WIDTH }). (5) Return uri. Export shareReceipt(saleId: string) function calling printReceipt, then using expo-sharing: await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Receipt ${sale.receiptNumber}` }).",
+    "Create src/hooks/useReceipt.ts with usePrintReceipt() mutation wrapping printService.printReceipt, useShareReceipt() mutation wrapping shareReceipt.",
+    "Create src/app/(tabs)/sales/[id].tsx screen for viewing sale receipt. Load sale with useSaleWithDetails(id) from route params. Display: Receipt number (large, bold), date/time, customer name (if any). Itemized list: product name, quantity, unit price, total per item. Subtotal, discount, total. Payment breakdown: method, amount. Two action buttons at bottom: 'Print Receipt' (calls usePrintReceipt), 'Share Receipt' (calls useShareReceipt). Show success toast after print/share.",
+    "Update POS checkout success flow in src/app/(tabs)/pos/checkout.tsx. After successful sale, navigate to sales/[id] receipt screen: router.push(`/sales/${saleId}`). User can share receipt with customer or print, then navigate back to POS.",
+    "Create src/app/(tabs)/sales/index.tsx screen for receipt history. List all sales ordered by created_at DESC using useSales(). Each row: receipt number, date (formatDate), total (formatCurrency), customer name (if any). Tap to view full receipt (navigate to sales/[id]). Add date range filter at top. Search by receipt number.",
+    "Add 'Sales History' navigation link to Dashboard or main menu. Ensure receipt screen is accessible from multiple entry points: post-checkout, sales history list, reports detail."
+  ],
+  "acceptance_criteria": [
+    "generateReceiptHTML() produces valid HTML with business header, itemized sale items, totals, payment breakdown, and footer",
+    "HTML template uses inline CSS, monospace font, max-width 300px for receipt printer compatibility",
+    "printReceipt() uses expo-print to generate PDF, returns file URI",
+    "shareReceipt() uses expo-sharing to share PDF via system share sheet with appropriate MIME type",
+    "Sale receipt screen displays full sale details with itemized products, totals, and payments",
+    "Print and Share buttons on receipt screen trigger usePrintReceipt and useShareReceipt mutations successfully",
+    "After successful checkout, user navigates to receipt screen and can share receipt immediately",
+    "Sales history screen lists all sales with receipt number, date, total, customer, ordered newest first",
+    "Sales history screen has date range filter and receipt number search",
+    "Tapping any sale in history navigates to receipt detail screen"
+  ],
+  "verification": [
+    "Run npx tsc --noEmit and npx expo lint to confirm no errors",
+    "Complete a sale with multiple items and cash payment",
+    "Verify navigation to receipt screen after checkout shows correct receipt number, items, totals",
+    "Tap 'Share Receipt' button, verify system share sheet appears with PDF",
+    "Share PDF to email or messaging app, open PDF, verify formatting: business name at top, items in table, totals, payment info",
+    "Check PDF max width is 300px (appears narrow, suitable for thermal printers)",
+    "Navigate to Sales History screen, verify completed sale appears in list with correct receipt number and total",
+    "Tap sale from history, verify navigation to receipt detail screen",
+    "Search for receipt by receipt number (e.g., RCP-20240103-0001), verify filtering works",
+    "Apply date range filter to sales history, verify only sales within range appear",
+    "Complete sale with discount and mobile money payment, share receipt, verify discount line and mobile money payment details appear correctly in PDF",
+    "Enable airplane mode, view sales history and receipt, verify offline functionality (PDF generation may require online for fonts, test both)"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

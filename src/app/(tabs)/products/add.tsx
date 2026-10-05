@@ -18,6 +18,9 @@ import { z } from 'zod';
 import * as ImagePicker from 'expo-image-picker';
 import Input from '../../../components/common/Input';
 import Button from '../../../components/common/Button';
+import BarcodeScanner from '../../../components/common/BarcodeScanner';
+import CategoryModal from '../../../components/products/CategoryModal';
+import { ScanIcon, PlusIcon } from '../../../components/common/Icons';
 import { useCreateProduct } from '../../../hooks/useProducts';
 import { useCategories } from '../../../hooks/useCategories';
 import { toMinorUnits } from '../../../utils/currency';
@@ -42,16 +45,17 @@ type ProductFormData = z.infer<typeof productSchema>;
 export default function AddProductScreen() {
   const router = useRouter();
   const [imageUri, setImageUri] = useState<string | undefined>();
-  const [variants, setVariants] = useState<{ name: string; price: string }[]>([]);
-  const [variantName, setVariantName] = useState('');
-  const [variantPrice, setVariantPrice] = useState('');
+  const [scannerVisible, setScannerVisible] = useState(false);
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const createProduct = useCreateProduct();
   const { data: categories = [] } = useCategories();
 
   const {
     control,
     handleSubmit,
+    reset,
     formState: { errors },
+    setValue,
   } = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
     defaultValues: {
@@ -68,6 +72,54 @@ export default function AddProductScreen() {
   });
 
   const handlePickImage = async () => {
+    Alert.alert(
+      'Product Image',
+      'Choose an option',
+      [
+        {
+          text: 'Take Photo',
+          onPress: handleTakePhoto,
+        },
+        {
+          text: 'Upload from Gallery',
+          onPress: handleUploadFromGallery,
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const handleTakePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Please grant camera access to take product photos'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setImageUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo');
+    }
+  };
+
+  const handleUploadFromGallery = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
@@ -81,8 +133,7 @@ export default function AddProductScreen() {
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
+        allowsEditing: false,
         quality: 0.8,
       });
 
@@ -93,6 +144,12 @@ export default function AddProductScreen() {
       console.error('Error picking image:', error);
       Alert.alert('Error', 'Failed to pick image');
     }
+  };
+
+  const handleBarcodeScanned = (barcode: string) => {
+    setValue('barcode', barcode);
+    setScannerVisible(false);
+    Alert.alert('Barcode Scanned', `Barcode: ${barcode}`);
   };
 
   const onSubmit = async (data: ProductFormData) => {
@@ -123,9 +180,15 @@ export default function AddProductScreen() {
       }
 
       await saveProduct(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating product:', error);
-      Alert.alert('Error', 'Failed to create product. Please try again.');
+      
+      // Check if it's a duplicate barcode error
+      if (error.message && error.message.includes('already exists')) {
+        Alert.alert('Duplicate Barcode', error.message);
+      } else {
+        Alert.alert('Error', 'Failed to create product. Please try again.');
+      }
     }
   };
 
@@ -156,6 +219,10 @@ export default function AddProductScreen() {
       initialQuantity: initialStock,
       localImagePath: imageUri,
     });
+
+    // Clear form and image for the next product
+    reset();
+    setImageUri(undefined);
 
     Alert.alert('Success', 'Product created successfully', [
       { text: 'OK', onPress: () => router.back() },
@@ -189,7 +256,11 @@ export default function AddProductScreen() {
                 {imageUri ? (
                   <Image source={{ uri: imageUri }} style={styles.imagePreview} />
                 ) : (
-                  <Text style={styles.imageButtonText}>📷 Upload Image</Text>
+                  <View style={styles.imagePlaceholderContent}>
+                    <Text style={styles.imageButtonIcon}>📷</Text>
+                    <Text style={styles.imageButtonText}>Add Photo</Text>
+                    <Text style={styles.imageButtonSubtext}>Take photo or upload from gallery</Text>
+                  </View>
                 )}
               </TouchableOpacity>
             </View>
@@ -231,14 +302,24 @@ export default function AddProductScreen() {
               control={control}
               name="barcode"
               render={({ field: { onChange, onBlur, value } }) => (
-                <Input
-                  label="Barcode (Optional)"
-                  placeholder="e.g., 1234567890123"
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  keyboardType="number-pad"
-                />
+                <View>
+                  <Input
+                    label="Barcode (Optional)"
+                    placeholder="e.g., 1234567890123"
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    keyboardType="number-pad"
+                  />
+                  <TouchableOpacity
+                    style={styles.scanBarcodeButton}
+                    onPress={() => setScannerVisible(true)}
+                    activeOpacity={0.7}
+                  >
+                    <ScanIcon size={20} color={COLORS.primary} />
+                    <Text style={styles.scanText}>Scan Barcode</Text>
+                  </TouchableOpacity>
+                </View>
               )}
             />
 
@@ -248,7 +329,17 @@ export default function AddProductScreen() {
                 name="categoryId"
                 render={({ field: { onChange, value } }) => (
                   <View style={styles.categorySection}>
-                    <Text style={styles.categoryLabel}>Category (Optional)</Text>
+                    <View style={styles.categoryHeader}>
+                      <Text style={styles.categoryLabel}>Category (Optional)</Text>
+                      <TouchableOpacity
+                        style={styles.addCategoryButton}
+                        onPress={() => setCategoryModalVisible(true)}
+                        activeOpacity={0.7}
+                      >
+                        <PlusIcon size={16} color={COLORS.primary} />
+                        <Text style={styles.addCategoryText}>New</Text>
+                      </TouchableOpacity>
+                    </View>
                     <View style={styles.categoryChips}>
                       {categories.map((category) => (
                         <TouchableOpacity
@@ -275,6 +366,21 @@ export default function AddProductScreen() {
                   </View>
                 )}
               />
+            )}
+
+            {/* Show create category button if no categories */}
+            {categories.length === 0 && (
+              <View style={styles.categorySection}>
+                <Text style={styles.categoryLabel}>Category (Optional)</Text>
+                <TouchableOpacity
+                  style={styles.createFirstCategoryButton}
+                  onPress={() => setCategoryModalVisible(true)}
+                  activeOpacity={0.7}
+                >
+                  <PlusIcon size={20} color={COLORS.primary} />
+                  <Text style={styles.createFirstCategoryText}>Create your first category</Text>
+                </TouchableOpacity>
+              </View>
             )}
 
             <Controller
@@ -362,73 +468,6 @@ export default function AddProductScreen() {
                 />
               )}
             />
-
-            {/* Variants Section */}
-            <View style={styles.variantsSection}>
-              <Text style={styles.variantsLabel}>Product Variants (Optional)</Text>
-              <Text style={styles.variantsHelper}>
-                Variants allow selling the same product in different sizes or configurations
-              </Text>
-
-              {/* List of current variants */}
-              {variants.map((variant, index) => (
-                <View key={index} style={styles.variantRow}>
-                  <View style={styles.variantInputs}>
-                    <View style={styles.variantInputWrapper}>
-                      <Text style={styles.variantInputLabel}>Name</Text>
-                      <Text style={styles.variantInputValue}>{variant.name}</Text>
-                    </View>
-                    <View style={styles.variantInputWrapper}>
-                      <Text style={styles.variantInputLabel}>Price</Text>
-                      <Text style={styles.variantInputValue}>{variant.price}</Text>
-                    </View>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.removeVariantButton}
-                    onPress={() => {
-                      setVariants(variants.filter((_, i) => i !== index));
-                    }}
-                  >
-                    <Text style={styles.removeVariantText}>×</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-
-              {/* Add Variant Row */}
-              <View style={styles.addVariantRow}>
-                <View style={styles.addVariantInputs}>
-                  <Input
-                    label="Variant Name"
-                    placeholder="e.g., Small, Medium"
-                    value={variantName}
-                    onChangeText={setVariantName}
-                    style={styles.variantInput}
-                  />
-                  <Input
-                    label="Price"
-                    placeholder="0.00"
-                    value={variantPrice}
-                    onChangeText={setVariantPrice}
-                    keyboardType="decimal-pad"
-                    style={styles.variantInput}
-                  />
-                </View>
-                <TouchableOpacity
-                  style={styles.addVariantButton}
-                  onPress={() => {
-                    if (variantName.trim() && variantPrice.trim()) {
-                      setVariants([...variants, { name: variantName, price: variantPrice }]);
-                      setVariantName('');
-                      setVariantPrice('');
-                    } else {
-                      Alert.alert('Error', 'Please enter both variant name and price');
-                    }
-                  }}
-                >
-                  <Text style={styles.addVariantButtonText}>+ Add Variant</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
           </View>
         </ScrollView>
 
@@ -441,6 +480,19 @@ export default function AddProductScreen() {
           />
         </View>
       </KeyboardAvoidingView>
+
+      {/* Barcode Scanner Modal */}
+      <BarcodeScanner
+        visible={scannerVisible}
+        onClose={() => setScannerVisible(false)}
+        onBarcodeScanned={handleBarcodeScanned}
+      />
+
+      {/* Category Modal */}
+      <CategoryModal
+        visible={categoryModalVisible}
+        onClose={() => setCategoryModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -506,9 +558,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  imagePlaceholderContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageButtonIcon: {
+    fontSize: 40,
+    marginBottom: SPACING.sm,
+  },
   imageButtonText: {
     fontSize: TYPOGRAPHY.fontSize.base,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text,
+    marginBottom: SPACING.xs,
+  },
+  imageButtonSubtext: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
     color: COLORS.textSecondary,
+    textAlign: 'center',
   },
   imagePreview: {
     width: '100%',
@@ -558,88 +625,64 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
   },
-  variantsSection: {
-    marginTop: SPACING.lg,
-    paddingTop: SPACING.lg,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-  },
-  variantsLabel: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  variantsHelper: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.md,
-  },
-  variantRow: {
+  scanBarcodeButton: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: SPACING.sm,
-    padding: SPACING.md,
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  variantInputs: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: SPACING.md,
-  },
-  variantInputWrapper: {
-    flex: 1,
-  },
-  variantInputLabel: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs / 2,
-  },
-  variantInputValue: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.text,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-  },
-  removeVariantButton: {
-    width: 32,
-    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.badgeError,
-    borderRadius: BORDER_RADIUS.full,
-    marginLeft: SPACING.sm,
-  },
-  removeVariantText: {
-    fontSize: TYPOGRAPHY.fontSize.xl,
-    color: COLORS.badgeErrorText,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-  },
-  addVariantRow: {
-    marginTop: SPACING.md,
-  },
-  addVariantInputs: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-    marginBottom: SPACING.sm,
-  },
-  variantInput: {
-    flex: 1,
-  },
-  addVariantButton: {
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.primary,
     borderRadius: BORDER_RADIUS.md,
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.lg,
-    alignItems: 'center',
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.md,
+    gap: SPACING.sm,
   },
-  addVariantButtonText: {
+  scanText: {
     fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.primary,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.primary,
+  },
+  categoryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  addCategoryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  addCategoryText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.primary,
+  },
+  createFirstCategoryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    backgroundColor: COLORS.surface,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
+    borderRadius: BORDER_RADIUS.md,
+    marginTop: SPACING.xs,
+  },
+  createFirstCategoryText: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.primary,
   },
 });

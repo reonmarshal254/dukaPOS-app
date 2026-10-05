@@ -145,16 +145,45 @@ export class StockBatchRepository {
   }
 
   /**
-   * Allocate stock using FEFO (First Expiry First Out) logic
-   * Returns array of allocations with batch ID, quantity, and cost
+   * Allocate stock using FEFO (First Expiry First Out) logic.
+   * Returns array of allocations with batch ID, quantity, and cost.
+   *
+   * If a product has current_quantity > 0 but no batch rows (e.g. legacy data
+   * whose initial batch INSERT failed), a synthetic batch is created on the fly
+   * so the sale can proceed without data loss.
    */
   async allocateStock(
     productId: string,
     quantityNeeded: number
   ): Promise<Array<{ batchId: string; quantity: number; cost: number }>> {
-    const availableBatches = await this.getAvailableBatches(productId);
+    let availableBatches = await this.getAvailableBatches(productId);
+
+    // ── Self-healing: product has stock but no batches ──────────────────────
+    // This can happen when the initial batch INSERT failed on older data.
+    // Reconstruct a batch from the product record so the sale can complete.
+    if (availableBatches.length === 0) {
+      const productRow = await executeQuerySingle<{
+        current_quantity: number;
+        purchase_price: number;
+      }>(
+        `SELECT current_quantity, purchase_price FROM products WHERE id = ?`,
+        [productId]
+      );
+
+      if (productRow && productRow.current_quantity >= quantityNeeded) {
+        // Create a recovery batch
+        const recoveryBatch = await this.create({
+          productId,
+          batchNumber: `RECOVERY-${Date.now()}`,
+          receivedQuantity: productRow.current_quantity,
+          purchaseCost: productRow.purchase_price ?? 0,
+        });
+        availableBatches = [recoveryBatch];
+      }
+    }
+    // ───────────────────────────────────────────────────────────────────────
+
     const allocations: Array<{ batchId: string; quantity: number; cost: number }> = [];
-    
     let remainingQuantity = quantityNeeded;
 
     for (const batch of availableBatches) {

@@ -43,6 +43,8 @@ export default function EditProductScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [imageUri, setImageUri] = useState<string | undefined>();
+  const [stockAdjustment, setStockAdjustment] = useState('0');
+  const [adjustmentReason, setAdjustmentReason] = useState('');
   
   const { data: product, isLoading } = useProduct(id);
   const updateProduct = useUpdateProduct();
@@ -86,6 +88,54 @@ export default function EditProductScreen() {
   }, [product, reset]);
 
   const handlePickImage = async () => {
+    Alert.alert(
+      'Product Image',
+      'Choose an option',
+      [
+        {
+          text: 'Take Photo',
+          onPress: handleTakePhoto,
+        },
+        {
+          text: 'Upload from Gallery',
+          onPress: handleUploadFromGallery,
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const handleTakePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Please grant camera access to take product photos'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setImageUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo');
+    }
+  };
+
+  const handleUploadFromGallery = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
@@ -99,8 +149,7 @@ export default function EditProductScreen() {
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
+        allowsEditing: false,
         quality: 0.8,
       });
 
@@ -193,6 +242,146 @@ export default function EditProductScreen() {
             } catch (error) {
               console.error('Error deleting product:', error);
               Alert.alert('Error', 'Failed to delete product. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleStockAdjustment = async () => {
+    const adjustment = parseInt(stockAdjustment);
+    
+    if (isNaN(adjustment) || adjustment === 0) {
+      Alert.alert('Error', 'Please enter a valid adjustment amount');
+      return;
+    }
+
+    const newQuantity = (product?.currentQuantity || 0) + adjustment;
+    
+    if (newQuantity < 0) {
+      Alert.alert('Error', 'Stock quantity cannot be negative');
+      return;
+    }
+
+    const action = adjustment > 0 ? 'Add' : 'Remove';
+    const absAdjustment = Math.abs(adjustment);
+
+    Alert.alert(
+      `${action} Stock`,
+      `${action} ${absAdjustment} ${product?.unit || 'units'}?\n\nNew quantity: ${newQuantity} ${product?.unit || 'units'}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm',
+          onPress: async () => {
+            try {
+              // Import dependencies
+              const { executeTransaction } = await import('../../../database');
+              const { TABLES } = await import('../../../database/schema');
+              const { generateUUID } = await import('../../../utils/uuid');
+              const { getCurrentDateTime } = await import('../../../utils/datetime');
+              const stockBatchRepository = (await import('../../../services/repositories/stockBatchRepository')).default;
+
+              if (adjustment > 0) {
+                // Adding stock - create a batch
+                await executeTransaction(async (db) => {
+                  const now = getCurrentDateTime();
+                  const batchId = generateUUID();
+                  
+                  // Create stock batch
+                  await db.runAsync(
+                    `INSERT INTO ${TABLES.STOCK_BATCHES} (
+                      id, product_id, supplier_id, batch_number, received_quantity, remaining_quantity,
+                      purchase_cost, manufacturing_date, expiry_date, received_at, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                      batchId,
+                      id,
+                      null,
+                      `ADJ-${Date.now()}`,
+                      adjustment,
+                      adjustment,
+                      product?.purchasePrice || 0,
+                      null,
+                      null,
+                      now,
+                      now,
+                    ]
+                  );
+
+                  // Update product quantity
+                  await db.runAsync(
+                    `UPDATE ${TABLES.PRODUCTS} SET current_quantity = ?, updated_at = ? WHERE id = ?`,
+                    [newQuantity, now, id]
+                  );
+
+                  // Record stock movement
+                  await db.runAsync(
+                    `INSERT INTO ${TABLES.STOCK_MOVEMENTS} (
+                      id, product_id, batch_id, type, quantity, notes, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                      generateUUID(),
+                      id,
+                      batchId,
+                      'ADJUSTMENT',
+                      adjustment,
+                      adjustmentReason || 'Manual stock adjustment',
+                      now,
+                    ]
+                  );
+                });
+              } else {
+                // Removing stock - use FEFO allocation
+                const allocations = await stockBatchRepository.allocateStock(id, absAdjustment);
+                
+                await executeTransaction(async (db) => {
+                  const now = getCurrentDateTime();
+
+                  // Deduct from batches
+                  for (const allocation of allocations) {
+                    const batch = await stockBatchRepository.getById(allocation.batchId);
+                    if (batch) {
+                      const newRemaining = batch.remainingQuantity - allocation.quantity;
+                      await db.runAsync(
+                        `UPDATE ${TABLES.STOCK_BATCHES} SET remaining_quantity = ? WHERE id = ?`,
+                        [newRemaining, allocation.batchId]
+                      );
+                    }
+                  }
+
+                  // Update product quantity
+                  await db.runAsync(
+                    `UPDATE ${TABLES.PRODUCTS} SET current_quantity = ?, updated_at = ? WHERE id = ?`,
+                    [newQuantity, now, id]
+                  );
+
+                  // Record stock movement
+                  await db.runAsync(
+                    `INSERT INTO ${TABLES.STOCK_MOVEMENTS} (
+                      id, product_id, batch_id, type, quantity, notes, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                      generateUUID(),
+                      id,
+                      null,
+                      'ADJUSTMENT',
+                      absAdjustment,
+                      adjustmentReason || 'Manual stock adjustment',
+                      now,
+                    ]
+                  );
+                });
+              }
+              
+              setStockAdjustment('0');
+              setAdjustmentReason('');
+              
+              Alert.alert('Success', 'Stock updated successfully');
+            } catch (error: any) {
+              console.error('Error adjusting stock:', error);
+              Alert.alert('Error', error.message || 'Failed to adjust stock. Please try again.');
             }
           },
         },
@@ -404,6 +593,43 @@ export default function EditProductScreen() {
                 />
               )}
             />
+
+            {/* Stock Adjustment Section */}
+            <View style={styles.stockSection}>
+              <Text style={styles.sectionTitle}>Current Stock</Text>
+              <View style={styles.currentStockCard}>
+                <Text style={styles.currentStockLabel}>Available Quantity</Text>
+                <Text style={styles.currentStockValue}>
+                  {product?.currentQuantity || 0} {product?.unit || 'pcs'}
+                </Text>
+              </View>
+
+              <Text style={styles.sectionTitle}>Adjust Stock</Text>
+              <Input
+                label="Adjustment Amount"
+                placeholder="e.g., 50 to add, -20 to remove"
+                value={stockAdjustment}
+                onChangeText={setStockAdjustment}
+                keyboardType="numeric"
+                helperText="Use positive number to add stock, negative to remove"
+              />
+              
+              <Input
+                label="Reason (Optional)"
+                placeholder="e.g., Received new shipment, Damaged goods"
+                value={adjustmentReason}
+                onChangeText={setAdjustmentReason}
+                multiline
+                numberOfLines={2}
+              />
+
+              <Button
+                title="Apply Stock Adjustment"
+                onPress={handleStockAdjustment}
+                variant="outline"
+                disabled={updateProduct.isPending}
+              />
+            </View>
           </View>
         </ScrollView>
 
@@ -556,6 +782,37 @@ const styles = StyleSheet.create({
   categoryChipTextActive: {
     color: COLORS.textInverse,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+  stockSection: {
+    marginTop: SPACING.xl,
+    paddingTop: SPACING.xl,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  sectionTitle: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.text,
+    marginBottom: SPACING.md,
+  },
+  currentStockCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+  },
+  currentStockLabel: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.xs,
+  },
+  currentStockValue: {
+    fontSize: TYPOGRAPHY.fontSize['2xl'],
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.primary,
   },
   footer: {
     padding: SPACING.lg,
