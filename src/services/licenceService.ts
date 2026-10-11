@@ -1,18 +1,34 @@
 /**
  * licenceService.ts
  *
- * Handles all licence and payment operations:
- *  - Check licence validity (local cache + remote)
- *  - Charge M-Pesa via Paystack STK push (no WebView)
- *  - Poll payment status until confirmed
- *  - Persist licence in SecureStore
+ * PRICING_REMOVED: This service is currently disabled but preserved for future use.
+ * All subscription and licence checking functionality has been disabled.
+ * The app is now free to use without any restrictions.
+ * 
+ * To restore pricing functionality:
+ * 1. Uncomment the licence checks in src/app/index.tsx
+ * 2. Uncomment background enforcement in src/app/(tabs)/_layout.tsx
+ * 3. Re-enable payment screens in src/app/(auth)/_layout.tsx
+ * 4. Restore "Pricing & Licence" menu item in settings
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 
+ * Handles all licence and payment operations.
+ *
+ * Offline / grace policy (updated):
+ *  - If we have a confirmed VALID cached licence → trust it offline.
+ *  - If we have NO valid cache offline → return { valid: false, offline: true }
+ *    The caller (index.tsx, _layout.tsx) checks isInGracePeriod() to decide
+ *    whether to let the user in. licenceService no longer makes that policy
+ *    decision itself — it just reports facts.
+ *  - Billing disabled globally → always valid regardless.
  */
 
 import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-export type Plan = 'daily' | 'weekly' | 'monthly' | 'lifetime';
+export type Plan = 'daily' | 'weekly' | 'monthly' | 'lifetime' | 'free';
 
 export interface LicenceInfo {
   valid: boolean;
@@ -20,14 +36,32 @@ export interface LicenceInfo {
   licenceKey?: string;
   expiresAt?: string | null;
   activatedAt?: string;
+  /** Why invalid */
   reason?: 'no_licence' | 'expired' | 'suspended';
+  /** True when result is from offline cache/grace — not server-verified */
+  offline?: boolean;
+  /** True when billing is globally disabled by admin */
+  billingDisabled?: boolean;
 }
 
-export const PLANS: Record<Plan, { label: string; price: number; duration: string; popular?: boolean }> = {
-  daily:    { label: 'Daily',    price: 100,   duration: '1 day'    },
-  weekly:   { label: 'Weekly',   price: 600,   duration: '7 days',  popular: true },
-  monthly:  { label: 'Monthly',  price: 2000,  duration: '30 days'  },
-  lifetime: { label: 'Lifetime', price: 10000, duration: 'Forever'  },
+export type BillingPlan = 'daily' | 'weekly' | 'monthly' | 'lifetime';
+
+// Read pricing from Constants.expoConfig.extra (loaded from eas.json env at build time)
+function getPlanPrices() {
+  const extra = (Constants.expoConfig?.extra as any) || {};
+  return {
+    daily:    parseInt(extra.planPrices?.daily    || '10000',  10),
+    weekly:   parseInt(extra.planPrices?.weekly   || '60000',  10),
+    monthly:  parseInt(extra.planPrices?.monthly  || '200000', 10),
+    lifetime: parseInt(extra.planPrices?.lifetime || '1000000',10),
+  };
+}
+
+export const PLANS: Record<BillingPlan, { label: string; price: number; duration: string; popular?: boolean }> = {
+  daily:    { label: 'Daily',    price: getPlanPrices().daily,    duration: '1 day'    },
+  weekly:   { label: 'Weekly',   price: getPlanPrices().weekly,   duration: '7 days',  popular: true },
+  monthly:  { label: 'Monthly',  price: getPlanPrices().monthly,  duration: '30 days'  },
+  lifetime: { label: 'Lifetime', price: getPlanPrices().lifetime, duration: 'Forever'  },
 };
 
 // ─── SecureStore keys ─────────────────────────────────────────────────────────
@@ -46,7 +80,10 @@ export function getAdminUrl(): string {
 
 // ─── Cache helpers ────────────────────────────────────────────────────────────
 export async function cacheLicence(info: LicenceInfo): Promise<void> {
-  await SecureStore.setItemAsync(KEYS.LICENCE, JSON.stringify(info));
+  // Never cache the offline/grace marker — only persist server-verified results
+  const toStore = { ...info };
+  delete toStore.offline;
+  await SecureStore.setItemAsync(KEYS.LICENCE, JSON.stringify(toStore));
   await SecureStore.setItemAsync(KEYS.CHECKED_AT, Date.now().toString());
 }
 
@@ -57,47 +94,36 @@ export async function getCachedLicence(): Promise<LicenceInfo | null> {
   } catch { return null; }
 }
 
-const CACHE_TTL_MS       = 5 * 60 * 1000;  // 5 min — short enough to pick up new payments quickly
-const INVALID_CACHE_TTL  = 30 * 1000;       // 30 sec — re-check very fast if currently invalid
+// Cache TTL: valid licence = 5 min, invalid = 30 sec (picks up new payments fast)
+const VALID_TTL_MS   = 5 * 60 * 1000;
+const INVALID_TTL_MS = 30 * 1000;
 
 async function isCacheStale(isValid: boolean): Promise<boolean> {
   const ts = await SecureStore.getItemAsync(KEYS.CHECKED_AT);
   if (!ts) return true;
-  // Invalid licences are re-checked much more aggressively
-  const ttl = isValid ? CACHE_TTL_MS : INVALID_CACHE_TTL;
+  const ttl = isValid ? VALID_TTL_MS : INVALID_TTL_MS;
   return Date.now() - parseInt(ts, 10) > ttl;
 }
 
-// ─── Check licence ─────────────────────────────────────────────────────────────
-/**
- * Returns current licence status.
- *
- * Offline behaviour (POS must always work):
- *  - If we have a valid cached licence → trust it, let the user in.
- *  - If we have an invalid/expired cache AND we're offline → grant a grace
- *    period (OFFLINE_GRACE_HOURS) so the POS still works without internet.
- *    The licence will be re-verified properly next time the device is online.
- *  - Only block when: online + server confirms invalid/expired.
- */
-const OFFLINE_GRACE_HOURS = 24; // kept for documentation — grace is unconditional when offline
-
+// ─── Check licence ────────────────────────────────────────────────────────────
 export async function checkLicence(deviceId: string): Promise<LicenceInfo> {
   const cached = await getCachedLicence();
 
-  // 1. Local expiry check on a valid cached licence
+  // 1. Local expiry check — mark cached valid licence as expired
   if (cached?.valid && cached.expiresAt && new Date(cached.expiresAt) < new Date()) {
     const expired: LicenceInfo = { valid: false, reason: 'expired', expiresAt: cached.expiresAt };
     await cacheLicence(expired);
-    // Don't block yet — still check connectivity below
+    // Fall through to network check — don't return offline expired result immediately
   }
 
-  // Re-read (may have been updated above)
   const current = await getCachedLicence();
 
-  // 2. Return fresh valid cache without hitting network
-  if (current?.valid && !(await isCacheStale(true))) return current;
+  // 2. Fresh valid cache — return without hitting network
+  if (current?.valid && !(await isCacheStale(true))) {
+    return current;
+  }
 
-  // 3. Try to reach server
+  // 3. Test connectivity (4s timeout)
   let online = false;
   try {
     const ping = await fetch(`${getAdminUrl()}/health`, {
@@ -107,51 +133,56 @@ export async function checkLicence(deviceId: string): Promise<LicenceInfo> {
     online = ping.ok || ping.status < 500;
   } catch { online = false; }
 
-  // 4. Offline path — never block the POS
+  // 4. Offline path
   if (!online) {
     if (current?.valid) {
-      // Valid cached licence → let in
-      return current;
+      // Has a valid cached licence — trust it offline
+      return { ...current, offline: true };
     }
-    // No valid cache offline → grant grace so POS keeps working
-    // Mark as grace so the UI can show a soft warning if needed
+    // No valid cache while offline — report invalid + offline flag
+    // The CALLER decides whether to apply grace period
     return {
-      valid: true,
-      plan: current?.plan,
-      licenceKey: current?.licenceKey,
-      expiresAt: current?.expiresAt,
-      activatedAt: current?.activatedAt,
+      valid:   false,
+      reason:  current?.reason ?? 'no_licence',
+      offline: true,
     };
   }
 
-  // 5. Online → fetch authoritative state from server
+  // 5. Online — fetch authoritative state from server
   try {
     const res = await fetch(`${getAdminUrl()}/api/licence/${deviceId}`, {
       headers: { 'Cache-Control': 'no-cache' },
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(8000),
     });
+
     if (!res.ok) {
-      // Server error, not a licence denial — fall back to cache
+      // 5xx server error — fall back to cache, don't block
       return current ?? { valid: false, reason: 'no_licence' };
     }
-    const data: LicenceInfo = await res.json();
+
+    const data: LicenceInfo & { billingEnabled?: boolean } = await res.json();
+
+    // Billing globally disabled — grant free access
+    if (data.billingEnabled === false) {
+      const free: LicenceInfo = { valid: true, billingDisabled: true };
+      await cacheLicence(free);
+      return free;
+    }
+
+    // Normal result — cache and return
     await cacheLicence(data);
     return data;
   } catch {
-    // Network error mid-request — fall back to cache
-    return current ?? { valid: false, reason: 'no_licence' };
+    // Network dropped mid-request — fall back to cache
+    if (current?.valid) return { ...current, offline: true };
+    return { valid: false, reason: 'no_licence', offline: true };
   }
 }
 
-// ─── Initiate M-Pesa charge (STK push) ────────────────────────────────────────
-/**
- * Sends an STK push to the user's M-Pesa number via Paystack.
- * Returns a reference string used to poll for completion.
- * phone must be in E.164 format e.g. +254712345678
- */
+// ─── Initiate M-Pesa STK push ─────────────────────────────────────────────────
 export async function chargeMpesa(
   deviceId: string,
-  plan: Plan,
+  plan: BillingPlan,
   phone: string
 ): Promise<{ reference: string; displayText: string; amountKes: number }> {
   const res = await fetch(`${getAdminUrl()}/api/payment/initiate`, {
@@ -159,18 +190,15 @@ export async function chargeMpesa(
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({ deviceId, plan, phone }),
   });
-
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as any;
     throw new Error(err.error || `Charge failed (${res.status})`);
   }
-
   return res.json();
 }
 
 // ─── Poll payment status ───────────────────────────────────────────────────────
 export type PollStatus = 'pending' | 'success' | 'failed';
-
 export interface PollResult {
   status: PollStatus;
   licenceKey?: string;
@@ -183,23 +211,15 @@ export async function pollPayment(reference: string): Promise<PollResult> {
   if (!res.ok) throw new Error(`Poll failed (${res.status})`);
   const data = await res.json() as PollResult & { activatedAt?: string };
 
-  // Always cache on success regardless of which field is present
-  if (data.status === 'success') {
-    const licenceKey = data.licenceKey;
-    const plan       = data.plan;
-    const expiresAt  = data.expiresAt ?? null;
-
-    if (licenceKey && plan) {
-      await cacheLicence({
-        valid:       true,
-        plan,
-        licenceKey,
-        expiresAt:   expiresAt ? new Date(expiresAt).toISOString() : null,
-        activatedAt: data.activatedAt ?? new Date().toISOString(),
-      });
-    }
+  if (data.status === 'success' && data.licenceKey && data.plan) {
+    await cacheLicence({
+      valid:       true,
+      plan:        data.plan,
+      licenceKey:  data.licenceKey,
+      expiresAt:   data.expiresAt ? new Date(data.expiresAt).toISOString() : null,
+      activatedAt: data.activatedAt ?? new Date().toISOString(),
+    });
   }
-
   return data;
 }
 
@@ -207,4 +227,11 @@ export async function pollPayment(reference: string): Promise<PollResult> {
 export async function clearCachedLicence(): Promise<void> {
   await SecureStore.deleteItemAsync(KEYS.LICENCE).catch(() => {});
   await SecureStore.deleteItemAsync(KEYS.CHECKED_AT).catch(() => {});
+}
+
+// ─── Force the next checkLicence call to bypass the cache TTL ────────────────
+// Call this before a background enforcement check so you always get a fresh
+// server response rather than the cached value.
+export async function invalidateLicenceCache(): Promise<void> {
+  await SecureStore.setItemAsync(KEYS.CHECKED_AT, '0');
 }

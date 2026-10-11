@@ -7,29 +7,41 @@ import { TYPOGRAPHY } from '../../constants/typography';
 
 interface CartItemProps {
   item: CartItemType;
-  onUpdateQuantity: (productId: string, quantity: number) => void;
-  onRemove: (productId: string) => void;
+  index: number;
+  onUpdateQuantity: (index: number, quantity: number) => void;
+  onRemove: (index: number) => void;
 }
 
-export default function CartItem({ item, onUpdateQuantity, onRemove }: CartItemProps) {
+export default function CartItem({ item, index, onUpdateQuantity, onRemove }: CartItemProps) {
   const handleDecrease = () => {
     if (item.quantity > 1) {
-      onUpdateQuantity(item.product.id, item.quantity - 1);
+      onUpdateQuantity(index, item.quantity - 1);
     }
   };
 
   const handleIncrease = () => {
-    onUpdateQuantity(item.product.id, item.quantity + 1);
+    onUpdateQuantity(index, item.quantity + 1);
   };
+
+  const displayPrice = item.variant ? item.variant.sellingPrice : item.product.sellingPrice;
+  const displayName = item.variant 
+    ? `${item.product.name} - ${item.variant.name}` 
+    : item.product.name;
+  const displayUnit = item.variant ? item.variant.unit : item.product.unit;
 
   return (
     <View style={styles.container}>
       <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>
-          {item.product.name}
+        <Text style={styles.name} numberOfLines={2}>
+          {displayName}
         </Text>
+        {item.variant && (
+          <Text style={styles.variantBadge}>
+            Variant: {item.variant.name}
+          </Text>
+        )}
         <Text style={styles.unitPrice}>
-          {formatCurrency(item.product.sellingPrice)} × {item.quantity} {item.product.unit}
+          {formatCurrency(displayPrice)} × {item.quantity} {displayUnit}
         </Text>
         {item.discount > 0 && (
           <Text style={styles.discount}>Discount: {item.discount}%</Text>
@@ -61,7 +73,7 @@ export default function CartItem({ item, onUpdateQuantity, onRemove }: CartItemP
           <Text style={styles.total}>{formatCurrency(item.total)}</Text>
           <TouchableOpacity
             style={styles.removeButton}
-            onPress={() => onRemove(item.product.id)}
+            onPress={() => onRemove(index)}
             activeOpacity={0.7}
           >
             <Text style={styles.removeButtonText}>✕</Text>
@@ -95,6 +107,12 @@ const styles = StyleSheet.create({
   unitPrice: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     color: COLORS.textSecondary,
+  },
+  variantBadge: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    marginBottom: SPACING.xs,
   },
   discount: {
     fontSize: TYPOGRAPHY.fontSize.sm,

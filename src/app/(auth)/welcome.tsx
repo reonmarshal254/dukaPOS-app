@@ -6,8 +6,6 @@ import {
   ScrollView,
   Dimensions,
   StatusBar,
-  Alert,
-  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -83,28 +81,10 @@ const f = StyleSheet.create({
 export default function WelcomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [checking, setChecking] = useState(false);
 
-  const handleGetStarted = async () => {
-    setChecking(true);
-    try {
-      // First-time setup requires internet so the device registers with the admin backend
-      const res = await fetch('https://dukapos-gjfx.onrender.com/health', {
-        method: 'HEAD',
-        signal: AbortSignal.timeout(5000),
-      });
-      const online = res.ok || res.status < 500;
-      if (!online) throw new Error('offline');
-    } catch {
-      setChecking(false);
-      Alert.alert(
-        'Internet Required',
-        'Please connect to the internet to set up DukaPOS for the first time. This is only needed once during setup.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-    setChecking(false);
+  const handleGetStarted = () => {
+    // PRICING_REMOVED: No online check required
+    // App works fully offline - device registration happens automatically when online
     router.push('/(auth)/setup');
   };
 
@@ -206,7 +186,6 @@ export default function WelcomeScreen() {
           style={s.ctaBtn}
           onPress={handleGetStarted}
           activeOpacity={0.85}
-          disabled={checking}
         >
           <LinearGradient
             colors={[COLORS.primary, COLORS.primaryDark]}
@@ -214,14 +193,10 @@ export default function WelcomeScreen() {
             end={{ x: 1, y: 0 }}
             style={s.ctaGradient}
           >
-            {checking ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={s.ctaText}>Get Started  →</Text>
-            )}
+            <Text style={s.ctaText}>Get Started  →</Text>
           </LinearGradient>
         </TouchableOpacity>
-        <Text style={s.footerNote}>Free to use · No account required</Text>
+        <Text style={s.footerNote}>Free to use · Works offline</Text>
       </View>
     </View>
   );

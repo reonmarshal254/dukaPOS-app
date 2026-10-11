@@ -1,14 +1,14 @@
 import { create } from 'zustand';
-import { CartItem, Product } from '../types';
+import { CartItem, Product, ProductVariant } from '../types';
 
 interface CartState {
   items: CartItem[];
   discount: number; // percentage 0-100
   
   // Actions
-  addItem: (product: Product, quantity?: number) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
-  removeItem: (productId: string) => void;
+  addItem: (product: Product, quantity?: number, variant?: ProductVariant) => void;
+  updateQuantity: (itemIndex: number, quantity: number) => void;
+  removeItem: (itemIndex: number) => void;
   setDiscount: (percentage: number) => void;
   clearCart: () => void;
   getSubtotal: () => number;
@@ -16,22 +16,31 @@ interface CartState {
 }
 
 /**
- * Calculate item total based on product price, quantity, and item-level discount
+ * Calculate item total based on product/variant price, quantity, and item-level discount
  */
-function calculateItemTotal(product: Product, quantity: number, discount: number): number {
-  const subtotal = product.sellingPrice * quantity;
+function calculateItemTotal(product: Product, quantity: number, discount: number, variant?: ProductVariant): number {
+  const price = variant ? variant.sellingPrice : product.sellingPrice;
+  const subtotal = price * quantity;
   const discountAmount = Math.round((subtotal * discount) / 100);
   return subtotal - discountAmount;
+}
+
+/**
+ * Generate a unique key for cart item (product + variant combination)
+ */
+function getItemKey(productId: string, variantId?: string): string {
+  return variantId ? `${productId}-${variantId}` : productId;
 }
 
 export const useCartStore = create<CartState>((set, get) => ({
   items: [],
   discount: 0,
 
-  addItem: (product: Product, quantity: number = 1) => {
+  addItem: (product: Product, quantity: number = 1, variant?: ProductVariant) => {
     set((state) => {
+      const itemKey = getItemKey(product.id, variant?.id);
       const existingItemIndex = state.items.findIndex(
-        (item) => item.product.id === product.id
+        (item) => getItemKey(item.product.id, item.variant?.id) === itemKey
       );
 
       if (existingItemIndex >= 0) {
@@ -42,35 +51,36 @@ export const useCartStore = create<CartState>((set, get) => ({
         newItems[existingItemIndex] = {
           ...existingItem,
           quantity: newQuantity,
-          total: calculateItemTotal(product, newQuantity, existingItem.discount),
+          total: calculateItemTotal(product, newQuantity, existingItem.discount, variant),
         };
         return { items: newItems };
       } else {
         // Add new item
         const newItem: CartItem = {
           product,
+          variant,
           quantity,
           discount: 0, // item-level discount
-          total: calculateItemTotal(product, quantity, 0),
+          total: calculateItemTotal(product, quantity, 0, variant),
         };
         return { items: [...state.items, newItem] };
       }
     });
   },
 
-  updateQuantity: (productId: string, quantity: number) => {
+  updateQuantity: (itemIndex: number, quantity: number) => {
     set((state) => {
       if (quantity <= 0) {
         // Remove item if quantity is 0 or negative
-        return { items: state.items.filter((item) => item.product.id !== productId) };
+        return { items: state.items.filter((_, index) => index !== itemIndex) };
       }
 
-      const newItems = state.items.map((item) => {
-        if (item.product.id === productId) {
+      const newItems = state.items.map((item, index) => {
+        if (index === itemIndex) {
           return {
             ...item,
             quantity,
-            total: calculateItemTotal(item.product, quantity, item.discount),
+            total: calculateItemTotal(item.product, quantity, item.discount, item.variant),
           };
         }
         return item;
@@ -80,9 +90,9 @@ export const useCartStore = create<CartState>((set, get) => ({
     });
   },
 
-  removeItem: (productId: string) => {
+  removeItem: (itemIndex: number) => {
     set((state) => ({
-      items: state.items.filter((item) => item.product.id !== productId),
+      items: state.items.filter((_, index) => index !== itemIndex),
     }));
   },
 

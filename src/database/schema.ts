@@ -6,6 +6,7 @@ export const TABLES = {
   PRODUCTS: 'products',
   PRODUCT_IMAGES: 'product_images',
   SUPPLIERS: 'suppliers',
+  SUPPLIER_SUPPLIES: 'supplier_supplies',
   CUSTOMERS: 'customers',
   PURCHASES: 'purchases',
   PURCHASE_ITEMS: 'purchase_items',
@@ -17,6 +18,8 @@ export const TABLES = {
   CUSTOMER_LEDGER: 'customer_ledger',
   SUPPLIER_PAYMENTS: 'supplier_payments',
   EXPENSES: 'expenses',
+  PRODUCT_VARIANTS: 'product_variants',
+  RECEIPTS: 'receipts',
   APP_SETTINGS: 'app_settings',
   SYNC_QUEUE: 'sync_queue',
   SYNC_LOGS: 'sync_logs',
@@ -111,6 +114,22 @@ CREATE TABLE IF NOT EXISTS ${TABLES.SUPPLIERS} (
   notes TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
+);
+`;
+
+// Create supplier supplies table
+export const CREATE_SUPPLIER_SUPPLIES_TABLE = `
+CREATE TABLE IF NOT EXISTS ${TABLES.SUPPLIER_SUPPLIES} (
+  id TEXT PRIMARY KEY NOT NULL,
+  supplierId TEXT NOT NULL,
+  productName TEXT NOT NULL,
+  quantity REAL NOT NULL,
+  unit TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  supplyDate TEXT NOT NULL,
+  notes TEXT,
+  createdAt TEXT NOT NULL,
+  FOREIGN KEY (supplierId) REFERENCES ${TABLES.SUPPLIERS}(id) ON DELETE CASCADE
 );
 `;
 
@@ -290,6 +309,38 @@ CREATE TABLE IF NOT EXISTS ${TABLES.EXPENSES} (
 );
 `;
 
+// Create receipts table
+export const CREATE_RECEIPTS_TABLE = `
+CREATE TABLE IF NOT EXISTS ${TABLES.RECEIPTS} (
+  id TEXT PRIMARY KEY NOT NULL,
+  sale_id TEXT NOT NULL UNIQUE,
+  receipt_number TEXT NOT NULL,
+  receipt_data TEXT NOT NULL,
+  image_path TEXT,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (sale_id) REFERENCES ${TABLES.SALES}(id) ON DELETE CASCADE
+);
+`;
+
+// Create product variants table
+export const CREATE_PRODUCT_VARIANTS_TABLE = `
+CREATE TABLE IF NOT EXISTS ${TABLES.PRODUCT_VARIANTS} (
+  id TEXT PRIMARY KEY NOT NULL,
+  productId TEXT NOT NULL,
+  name TEXT NOT NULL,
+  unit TEXT NOT NULL,
+  sellingPrice INTEGER NOT NULL,
+  purchasePrice INTEGER,
+  barcode TEXT,
+  sku TEXT,
+  isDefault INTEGER DEFAULT 0,
+  isActive INTEGER DEFAULT 1,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL,
+  FOREIGN KEY (productId) REFERENCES ${TABLES.PRODUCTS}(id) ON DELETE CASCADE
+);
+`;
+
 // Create app settings table
 export const CREATE_APP_SETTINGS_TABLE = `
 CREATE TABLE IF NOT EXISTS ${TABLES.APP_SETTINGS} (
@@ -370,6 +421,7 @@ export const CREATE_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_products_category ON ${TABLES.PRODUCTS}(category_id);`,
   `CREATE INDEX IF NOT EXISTS idx_products_barcode ON ${TABLES.PRODUCTS}(barcode);`,
   `CREATE INDEX IF NOT EXISTS idx_products_active ON ${TABLES.PRODUCTS}(is_active);`,
+  `CREATE INDEX IF NOT EXISTS idx_products_sku ON ${TABLES.PRODUCTS}(sku);`,
   `CREATE INDEX IF NOT EXISTS idx_stock_batches_product ON ${TABLES.STOCK_BATCHES}(product_id);`,
   `CREATE INDEX IF NOT EXISTS idx_stock_batches_expiry ON ${TABLES.STOCK_BATCHES}(expiry_date);`,
   `CREATE INDEX IF NOT EXISTS idx_stock_movements_product ON ${TABLES.STOCK_MOVEMENTS}(product_id);`,
@@ -383,6 +435,12 @@ export const CREATE_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_customer_ledger_customer ON ${TABLES.CUSTOMER_LEDGER}(customer_id);`,
   `CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON ${TABLES.SYNC_QUEUE}(status);`,
   `CREATE INDEX IF NOT EXISTS idx_sync_queue_entity ON ${TABLES.SYNC_QUEUE}(entity_type, entity_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_supplier_supplies_supplier ON ${TABLES.SUPPLIER_SUPPLIES}(supplierId);`,
+  `CREATE INDEX IF NOT EXISTS idx_product_variants_product ON ${TABLES.PRODUCT_VARIANTS}(productId);`,
+  `CREATE INDEX IF NOT EXISTS idx_product_variants_barcode ON ${TABLES.PRODUCT_VARIANTS}(barcode);`,
+  `CREATE INDEX IF NOT EXISTS idx_product_variants_sku ON ${TABLES.PRODUCT_VARIANTS}(sku);`,
+  `CREATE INDEX IF NOT EXISTS idx_receipts_sale ON ${TABLES.RECEIPTS}(sale_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_receipts_number ON ${TABLES.RECEIPTS}(receipt_number);`,
 ];
 
 // All table creation statements
@@ -393,6 +451,7 @@ export const ALL_TABLES = [
   CREATE_PRODUCTS_TABLE,
   CREATE_PRODUCT_IMAGES_TABLE,
   CREATE_SUPPLIERS_TABLE,
+  CREATE_SUPPLIER_SUPPLIES_TABLE,
   CREATE_CUSTOMERS_TABLE,
   CREATE_PURCHASES_TABLE,
   CREATE_PURCHASE_ITEMS_TABLE,
@@ -404,6 +463,8 @@ export const ALL_TABLES = [
   CREATE_CUSTOMER_LEDGER_TABLE,
   CREATE_SUPPLIER_PAYMENTS_TABLE,
   CREATE_EXPENSES_TABLE,
+  CREATE_PRODUCT_VARIANTS_TABLE,
+  CREATE_RECEIPTS_TABLE,
   CREATE_APP_SETTINGS_TABLE,
   CREATE_SYNC_QUEUE_TABLE,
   CREATE_SYNC_LOGS_TABLE,

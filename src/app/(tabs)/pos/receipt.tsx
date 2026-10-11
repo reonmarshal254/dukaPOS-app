@@ -1,21 +1,41 @@
-import { View, Text, StyleSheet, ScrollView, Share, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Share, Alert, TouchableOpacity } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRef, useState, useEffect } from 'react';
+import { captureRef } from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
 import ScreenHeader from '../../../components/common/ScreenHeader';
 import Receipt from '../../../components/receipts/Receipt';
 import Button from '../../../components/common/Button';
+import { DownloadIcon, ShareIcon, PrintIcon } from '../../../components/common/Icons';
 import { COLORS } from '../../../constants/colors';
-import { SPACING } from '../../../constants/spacing';
+import { SPACING, BORDER_RADIUS } from '../../../constants/spacing';
+import receiptRepository from '../../../services/repositories/receiptRepository';
+import { ReceiptData } from '../../../types';
 
 export default function ReceiptScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
+  const receiptViewRef = useRef<View>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
 
-  // Parse receipt data from params
-  const receiptData = params.receiptData 
-    ? JSON.parse(params.receiptData as string)
-    : null;
+  // Parse receipt data from params or load from database
+  const saleId = params.saleId as string;
+  const receiptDataParam = params.receiptData as string;
+
+  // Load receipt data on mount
+  useEffect(() => {
+    if (receiptDataParam) {
+      try {
+        const parsed = JSON.parse(receiptDataParam);
+        setReceiptData(parsed);
+      } catch (error) {
+        console.error('Error parsing receipt data:', error);
+      }
+    }
+  }, [receiptDataParam]);
 
   if (!receiptData) {
     return (
@@ -63,6 +83,51 @@ Powered by DukaPOS
     }
   };
 
+  const handleDownloadPNG = async () => {
+    try {
+      setIsDownloading(true);
+
+      if (!receiptViewRef.current) {
+        Alert.alert('Error', 'Receipt view not ready. Please try again.');
+        return;
+      }
+
+      // Capture the receipt as image
+      const imageUri = await captureRef(receiptViewRef, {
+        format: 'png',
+        quality: 1,
+        result: 'tmpfile',
+      });
+
+      // Update database with image path
+      if (saleId) {
+        try {
+          await receiptRepository.updateReceiptImage(saleId, imageUri);
+        } catch (error) {
+          console.error('Failed to update receipt image in database:', error);
+        }
+      }
+
+      // Check if sharing is available
+      const isAvailable = await Sharing.isAvailableAsync();
+      
+      if (isAvailable) {
+        await Sharing.shareAsync(imageUri, {
+          mimeType: 'image/png',
+          dialogTitle: 'Save Receipt Image',
+        });
+        Alert.alert('Success', 'Receipt image ready to save!');
+      } else {
+        Alert.alert('Success', 'Receipt image captured successfully!');
+      }
+    } catch (error) {
+      console.error('Error downloading receipt as PNG:', error);
+      Alert.alert('Error', 'Failed to save receipt as image. Please try again.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const handlePrint = () => {
     Alert.alert('Coming Soon', 'Receipt printing will be available in the next update');
   };
@@ -89,25 +154,50 @@ Powered by DukaPOS
           <Text style={styles.successText}>Sale Completed Successfully!</Text>
         </View>
 
-        <Receipt {...receiptData} />
+        <View ref={receiptViewRef} collapsable={false}>
+          <Receipt {...receiptData} />
+        </View>
       </ScrollView>
 
       <View style={styles.footer}>
-        <Button
-          title="Share Receipt"
-          onPress={handleShare}
-          variant="outline"
-        />
-        <Button
-          title="Print Receipt"
-          onPress={handlePrint}
-          variant="outline"
-          style={styles.buttonSpacing}
-        />
+        {/* Icon Action Buttons */}
+        <View style={styles.iconButtonsRow}>
+          <TouchableOpacity
+            style={[styles.iconButton, isDownloading && styles.iconButtonDisabled]}
+            onPress={handleDownloadPNG}
+            disabled={isDownloading}
+            activeOpacity={0.7}
+          >
+            <DownloadIcon size={24} color={isDownloading ? COLORS.textSecondary : COLORS.primary} />
+            <Text style={[styles.iconButtonLabel, isDownloading && styles.iconButtonLabelDisabled]}>
+              {isDownloading ? 'Saving...' : 'Download'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={handleShare}
+            activeOpacity={0.7}
+          >
+            <ShareIcon size={24} color={COLORS.primary} />
+            <Text style={styles.iconButtonLabel}>Share</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={handlePrint}
+            activeOpacity={0.7}
+          >
+            <PrintIcon size={24} color={COLORS.primary} />
+            <Text style={styles.iconButtonLabel}>Print</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Primary Action Button */}
         <Button
           title="New Sale"
           onPress={handleNewSale}
-          style={styles.buttonSpacing}
+          style={styles.newSaleButton}
         />
       </View>
     </SafeAreaView>
@@ -150,10 +240,42 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xl,
   },
   footer: {
-    padding: SPACING.lg,
+    padding: SPACING.md,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
     backgroundColor: COLORS.surface,
+  },
+  iconButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+    paddingHorizontal: SPACING.sm,
+  },
+  iconButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: COLORS.primaryLight,
+    minWidth: 80,
+    gap: SPACING.xs,
+  },
+  iconButtonDisabled: {
+    backgroundColor: COLORS.background,
+    opacity: 0.6,
+  },
+  iconButtonLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: COLORS.primary,
+    textAlign: 'center',
+  },
+  iconButtonLabelDisabled: {
+    color: COLORS.textSecondary,
+  },
+  newSaleButton: {
+    marginTop: 0,
   },
   button: {
     marginTop: SPACING.md,

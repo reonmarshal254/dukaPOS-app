@@ -12,7 +12,11 @@
         "gradleCommand": ":app:assembleDebug"
       },
       "env": {
-        "APP_VARIANT": "development"
+        "APP_VARIANT": "development",
+        "PLAN_DAILY_PRICE": "10000",
+        "PLAN_WEEKLY_PRICE": "60000",
+        "PLAN_MONTHLY_PRICE": "200000",
+        "PLAN_LIFETIME_PRICE": "1000000"
       }
     },
     "preview": {
@@ -22,7 +26,11 @@
       },
       "env": {
         "APP_VARIANT": "production",
-        "ADMIN_API_URL": "https://dukapos-gjfx.onrender.com"
+        "ADMIN_API_URL": "https://dukapos-gjfx.onrender.com",
+        "PLAN_DAILY_PRICE": "10000",
+        "PLAN_WEEKLY_PRICE": "60000",
+        "PLAN_MONTHLY_PRICE": "200000",
+        "PLAN_LIFETIME_PRICE": "1000000"
       }
     },
     "production": {
@@ -32,7 +40,11 @@
       },
       "env": {
         "APP_VARIANT": "production",
-        "ADMIN_API_URL": "https://dukapos-gjfx.onrender.com"
+        "ADMIN_API_URL": "https://dukapos-gjfx.onrender.com",
+        "PLAN_DAILY_PRICE": "10000",
+        "PLAN_WEEKLY_PRICE": "60000",
+        "PLAN_MONTHLY_PRICE": "200000",
+        "PLAN_LIFETIME_PRICE": "1000000"
       }
     }
   },

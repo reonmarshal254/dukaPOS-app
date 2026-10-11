@@ -33,6 +33,7 @@ import {
   PackageIcon,
   BoxIcon,
   UserPlusIcon,
+  TruckIcon,
 } from '../../components/common/Icons';
 
 const { width } = Dimensions.get('window');
@@ -342,10 +343,10 @@ export default function HomeScreen() {
                 route: '/(tabs)/products/add',
               },
               {
-                label: 'Add Stock',
-                icon: <BoxIcon size={26} color="#FFF" />,
+                label: 'Suppliers',
+                icon: <TruckIcon size={26} color="#FFF" />,
                 colors: ['#8B5CF6', '#7C3AED'] as [string, string],
-                route: '/(tabs)/pos',
+                route: '/(tabs)/suppliers',
               },
               {
                 label: 'Expenses',

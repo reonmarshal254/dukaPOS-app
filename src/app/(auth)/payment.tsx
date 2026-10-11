@@ -10,7 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../../constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/spacing';
 import { TYPOGRAPHY } from '../../constants/typography';
-import { chargeMpesa, pollPayment, PLANS, getAdminUrl, type Plan } from '../../services/licenceService';
+import { chargeMpesa, pollPayment, PLANS, getAdminUrl, type Plan, type BillingPlan } from '../../services/licenceService';
 import { useDevice } from '../../hooks/useDevice';
 
 type Step = 'input' | 'waiting' | 'verifying';
@@ -25,7 +25,7 @@ export default function PaymentScreen() {
   const { data: deviceInfo } = useDevice();
 
   const deviceId = paramDeviceId || deviceInfo?.deviceId || '';
-  const planInfo = PLANS[plan as Plan] ?? PLANS.monthly;
+  const planInfo = PLANS[plan as BillingPlan] ?? PLANS.monthly;
 
   const [digits, setDigits]       = useState('');   // last 9 digits after +254
   const [step, setStep]           = useState<Step>('input');
@@ -75,7 +75,7 @@ export default function PaymentScreen() {
     setStatusMsg('Sending M-Pesa prompt to your phone…');
 
     try {
-      const result = await chargeMpesa(deviceId, plan as Plan, fullPhone);
+      const result = await chargeMpesa(deviceId, plan as BillingPlan, fullPhone);
       setReference(result.reference);
       setStatusMsg(result.displayText || 'Check your phone for the M-Pesa prompt');
       startPolling(result.reference);

@@ -31,15 +31,25 @@ export default function CustomTabBar() {
 
   // Determine active tab from current pathname
   const getActiveTab = () => {
-    if (pathname === '/' || pathname === '/(tabs)' || pathname === '/(tabs)/index') return 'index';
+    // Exact matches for home/index
+    if (pathname === '/' || pathname === '/(tabs)' || pathname === '/(tabs)/index' || pathname.startsWith('/(tabs)/index')) {
+      return 'index';
+    }
+    // Check for other tabs - order matters (check longest paths first)
     if (pathname.startsWith('/(tabs)/pos'))      return 'pos';
     if (pathname.startsWith('/(tabs)/products')) return 'products';
     if (pathname.startsWith('/(tabs)/reports'))  return 'reports';
     if (pathname.startsWith('/(tabs)/settings')) return 'settings';
+    // Default fallback
     return 'index';
   };
 
   const activeTab = getActiveTab();
+
+  const handleTabPress = (tabName: string, href: string) => {
+    console.log(`[TabBar] Pressed: ${tabName}, current: ${pathname}`);
+    router.push(href as any);
+  };
 
   return (
     <View style={[styles.wrapper, { paddingBottom: insets.bottom }]}>
@@ -49,7 +59,7 @@ export default function CustomTabBar() {
           const isCenter = tab.name === 'pos';
 
           const onPress = () => {
-            if (!isFocused) router.push(tab.href as any);
+            handleTabPress(tab.name, tab.href);
           };
 
           // ── Center POS button ──────────────────────────────────────────

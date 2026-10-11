@@ -10,7 +10,8 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle, G, Polyline, Line, Rect, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, G, Polyline, Line, Text as SvgText } from 'react-native-svg';
+import { useRouter } from 'expo-router';
 import PeriodSelector from '../../../components/analytics/PeriodSelector';
 import {
   useSalesStats,
@@ -19,6 +20,7 @@ import {
   useHourlyStats,
   type Period,
 } from '../../../hooks/useAnalytics';
+import { useExpenseSummary, useExpenseTotal } from '../../../hooks/useExpenses';
 import { formatCurrency } from '../../../utils/currency';
 import { COLORS } from '../../../constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '../../../constants/spacing';
@@ -26,8 +28,8 @@ import { TYPOGRAPHY } from '../../../constants/typography';
 import {
   TrendingUpIcon,
   ShoppingBagIcon,
-  CashIcon,
   PackageIcon,
+  WalletIcon,
 } from '../../../components/common/Icons';
 
 const { width } = Dimensions.get('window');
@@ -198,7 +200,7 @@ const leg = StyleSheet.create({
 });
 
 // ─── Line chart ───────────────────────────────────────────────────────────────
-function LineChart({ data }: { data: Array<{ hour: number; revenue: number }> }) {
+function LineChart({ data }: { data: { hour: number; revenue: number }[] }) {
   const CW = CARD_W - SPACING.lg * 2;
   const CH = 140;
   const PAD_L = 48;
@@ -417,13 +419,56 @@ const cd = StyleSheet.create({
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function ReportsScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [period, setPeriod] = useState<Period>('daily');
   const [refreshing, setRefreshing] = useState(false);
+
+  // Calculate date ranges for current and previous periods
+  const getDateRanges = () => {
+    const now = new Date();
+    let currentStart: Date, currentEnd: Date, prevStart: Date, prevEnd: Date;
+
+    if (period === 'daily') {
+      currentStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      currentEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+      prevStart = new Date(currentStart);
+      prevStart.setDate(prevStart.getDate() - 1);
+      prevEnd = new Date(prevStart.getFullYear(), prevStart.getMonth(), prevStart.getDate(), 23, 59, 59);
+    } else if (period === 'weekly') {
+      const dayOfWeek = now.getDay();
+      currentStart = new Date(now);
+      currentStart.setDate(now.getDate() - dayOfWeek);
+      currentStart.setHours(0, 0, 0, 0);
+      currentEnd = new Date(now);
+      prevStart = new Date(currentStart);
+      prevStart.setDate(prevStart.getDate() - 7);
+      prevEnd = new Date(currentStart);
+      prevEnd.setMilliseconds(prevEnd.getMilliseconds() - 1);
+    } else {
+      // monthly
+      currentStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      currentEnd = new Date(now);
+      prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      prevEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+    }
+
+    return {
+      currentStart: currentStart.toISOString(),
+      currentEnd: currentEnd.toISOString(),
+      prevStart: prevStart.toISOString(),
+      prevEnd: prevEnd.toISOString(),
+    };
+  };
+
+  const dateRanges = getDateRanges();
 
   const { data: salesStats, refetch: rs } = useSalesStats(period);
   const { data: topProducts = [], refetch: rp } = useTopProducts(period, 8);
   const { data: paymentStats, refetch: rw } = usePaymentMethodStats(period);
   const { data: hourlyData = [] } = useHourlyStats(period);
+  const { data: expenseSummary = [] } = useExpenseSummary(dateRanges.currentStart, dateRanges.currentEnd);
+  const { data: currentExpenses = 0 } = useExpenseTotal(dateRanges.currentStart, dateRanges.currentEnd);
+  const { data: prevExpenses = 0 } = useExpenseTotal(dateRanges.prevStart, dateRanges.prevEnd);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -435,27 +480,83 @@ export default function ReportsScreen() {
   const transactions   = salesStats?.totalTransactions  ?? 0;
   const avgTransaction = salesStats?.averageTransactionValue ?? 0;
   const revenueChange  = salesStats?.revenueChange      ?? 0;
+  const prevRevenue    = salesStats?.previousPeriodRevenue ?? 0;
   const cashAmt        = paymentStats?.cash  ?? 0;
   const mpesaAmt       = paymentStats?.mpesa ?? 0;
   const payTotal       = cashAmt + mpesaAmt;
+
+  // Calculate net profit and expense changes
+  const netProfit = totalRevenue - currentExpenses;
+  const prevProfit = prevRevenue - prevExpenses;
+  const profitChange = prevProfit > 0 
+    ? ((netProfit - prevProfit) / prevProfit) * 100 
+    : (netProfit > 0 ? 100 : 0);
+  const expenseChange = prevExpenses > 0
+    ? ((currentExpenses - prevExpenses) / prevExpenses) * 100
+    : (currentExpenses > 0 ? 100 : 0);
 
   const maxProductRevenue = topProducts[0]?.revenue ?? 1;
 
   const periodLabel = period === 'daily' ? 'today' : period === 'weekly' ? 'this week' : 'this month';
 
   // ── Smart insights ───────────────────────────────────────────────────────────
-  const insights: Array<{ emoji: string; title: string; body: string; type: keyof typeof INSIGHT_STYLES }> = [];
+  const insights: { emoji: string; title: string; body: string; type: keyof typeof INSIGHT_STYLES }[] = [];
 
   if (totalRevenue > 0) {
+    // Profit margin insight
+    const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+    if (profitMargin < 10) {
+      insights.push({
+        emoji: '⚠️',
+        title: 'Low profit margin',
+        body: `Your profit margin is ${profitMargin.toFixed(1)}%. Expenses (${formatCurrency(currentExpenses)}) are eating into revenue. Review your expense categories and look for cost-cutting opportunities.`,
+        type: 'danger',
+      });
+    } else if (profitMargin > 30) {
+      insights.push({
+        emoji: '🎉',
+        title: 'Healthy profit margin',
+        body: `Excellent! You're keeping ${profitMargin.toFixed(1)}% of revenue as profit. This gives you room to invest in growth or handle unexpected costs.`,
+        type: 'success',
+      });
+    }
+
+    // Expense growth insight
+    if (Math.abs(expenseChange) > 15) {
+      insights.push({
+        emoji: expenseChange > 0 ? '📊' : '✅',
+        title: expenseChange > 0 ? 'Rising expenses' : 'Expenses down',
+        body: expenseChange > 0
+          ? `Expenses increased by ${expenseChange.toFixed(1)}% vs last period. Review your expense breakdown below to identify the main drivers.`
+          : `Great job! Expenses decreased by ${Math.abs(expenseChange).toFixed(1)}%. This improvement is directly boosting your profit.`,
+        type: expenseChange > 0 ? 'warning' : 'success',
+      });
+    }
+
+    // Revenue trend insight
     if (Math.abs(revenueChange) > 5) {
       insights.push({
         emoji: revenueChange > 0 ? '📈' : '📉',
         title: `Revenue ${revenueChange > 0 ? 'up' : 'down'} ${Math.abs(revenueChange).toFixed(1)}%`,
         body: revenueChange > 0
           ? 'Sales are trending upward. Keep your bestsellers well stocked.'
-          : 'Sales are lower than the previous period. Consider a promotion or bundle deal.',
+          : 'Sales are lower than the previous period. Consider a promotion or bundle deal to boost traffic.',
         type: revenueChange > 0 ? 'success' : 'warning',
       });
+    }
+
+    // Top expense category insight
+    if (expenseSummary.length > 0) {
+      const topExpense = expenseSummary[0];
+      const expensePct = currentExpenses > 0 ? (topExpense.total / currentExpenses) * 100 : 0;
+      if (expensePct > 40) {
+        insights.push({
+          emoji: '💸',
+          title: `${topExpense.category} is your biggest cost`,
+          body: `${topExpense.category} accounts for ${expensePct.toFixed(0)}% of total expenses (${formatCurrency(topExpense.total)}). Look for ways to optimize this category.`,
+          type: 'info',
+        });
+      }
     }
 
     if (avgTransaction > 0) {
@@ -530,8 +631,19 @@ export default function ReportsScreen() {
         >
           <View style={s.headerDecor1} />
           <View style={s.headerDecor2} />
-          <Text style={s.headerTitle}>Analytics</Text>
-          <Text style={s.headerSub}>Track your business performance</Text>
+          <View style={s.headerContent}>
+            <View>
+              <Text style={s.headerTitle}>Analytics</Text>
+              <Text style={s.headerSub}>Track your business performance</Text>
+            </View>
+            <TouchableOpacity
+              style={s.receiptsButton}
+              onPress={() => router.push('/(tabs)/reports/receipts')}
+              activeOpacity={0.7}
+            >
+              <Text style={s.receiptsButtonText}>📄 View Receipts</Text>
+            </TouchableOpacity>
+          </View>
           <View style={s.periodWrap}>
             <PeriodSelector selected={period} onSelect={setPeriod} />
           </View>
@@ -550,23 +662,30 @@ export default function ReportsScreen() {
             Icon={TrendingUpIcon}
           />
           <KpiCard
+            label="Net Profit"
+            value={formatCurrency(netProfit)}
+            trend={prevProfit !== 0 ? {
+              value: `${Math.abs(profitChange).toFixed(1)}%`,
+              positive: profitChange >= 0,
+            } : undefined}
+            accent="#10B981"
+            Icon={WalletIcon}
+          />
+          <KpiCard
             label="Transactions"
             value={String(transactions)}
             sub={transactions > 0 ? `${formatCurrency(avgTransaction)} avg` : undefined}
-            accent="#10B981"
+            accent="#F59E0B"
             Icon={ShoppingBagIcon}
           />
           <KpiCard
-            label="Avg Sale"
-            value={formatCurrency(avgTransaction)}
-            accent="#F59E0B"
-            Icon={CashIcon}
-          />
-          <KpiCard
-            label="Cash In"
-            value={formatCurrency(cashAmt)}
-            sub={payTotal > 0 ? `${pct(cashAmt, payTotal).toFixed(0)}% of payments` : undefined}
-            accent="#8B5CF6"
+            label="Total Expenses"
+            value={formatCurrency(currentExpenses)}
+            trend={prevExpenses > 0 ? {
+              value: `${Math.abs(expenseChange).toFixed(1)}%`,
+              positive: expenseChange < 0, // Lower expenses is positive
+            } : undefined}
+            accent="#EF4444"
             Icon={PackageIcon}
           />
         </View>
@@ -585,29 +704,65 @@ export default function ReportsScreen() {
 
         {/* ── Payment method pie + legend ──────────────────────────────────── */}
         <Section title="Payment Methods">
-          <Card style={s.payCard}>
-            <DonutChart cash={cashAmt} mpesa={mpesaAmt} />
-            <View style={s.payLegend}>
-              <Text style={s.payLegendTitle}>Breakdown</Text>
-              <LegendRow
-                color={MPESA_COLOR}
-                label="M-Pesa"
-                value={mpesaAmt}
-                pctVal={pct(mpesaAmt, payTotal)}
-              />
-              <LegendRow
-                color={CASH_COLOR}
-                label="Cash"
-                value={cashAmt}
-                pctVal={pct(cashAmt, payTotal)}
-              />
-              <View style={s.payTotal}>
-                <Text style={s.payTotalLabel}>Total collected</Text>
-                <Text style={s.payTotalValue}>{formatCurrency(payTotal)}</Text>
+          <Card>
+            <View style={s.payCardContent}>
+              <DonutChart cash={cashAmt} mpesa={mpesaAmt} />
+              <View style={s.payLegend}>
+                <Text style={s.payLegendTitle}>Breakdown</Text>
+                <LegendRow
+                  color={MPESA_COLOR}
+                  label="M-Pesa"
+                  value={mpesaAmt}
+                  pctVal={pct(mpesaAmt, payTotal)}
+                />
+                <LegendRow
+                  color={CASH_COLOR}
+                  label="Cash"
+                  value={cashAmt}
+                  pctVal={pct(cashAmt, payTotal)}
+                />
+                <View style={s.payTotal}>
+                  <Text style={s.payTotalLabel}>Total collected</Text>
+                  <Text style={s.payTotalValue}>{formatCurrency(payTotal)}</Text>
+                </View>
               </View>
             </View>
           </Card>
         </Section>
+
+        {/* ── Expenses breakdown ───────────────────────────────────────────── */}
+        {currentExpenses > 0 && expenseSummary.length > 0 && (
+          <Section title="Expenses Breakdown">
+            <Card>
+              <View style={s.expenseHeader}>
+                <Text style={s.expenseHeaderTitle}>Total Expenses</Text>
+                <Text style={s.expenseHeaderValue}>{formatCurrency(currentExpenses)}</Text>
+              </View>
+              {expenseSummary.map((exp, idx) => {
+                const expPct = currentExpenses > 0 ? (exp.total / currentExpenses) * 100 : 0;
+                const colors = [
+                  '#EF4444', '#F59E0B', '#10B981', '#3B82F6', 
+                  '#8B5CF6', '#EC4899', '#6B7280'
+                ];
+                const color = colors[idx % colors.length];
+                
+                return (
+                  <View key={exp.category} style={s.expenseRow}>
+                    <View style={s.expenseLeft}>
+                      <View style={[s.expenseDot, { backgroundColor: color }]} />
+                      <Text style={s.expenseCategory}>{exp.category}</Text>
+                      <Text style={s.expenseCount}>({exp.count})</Text>
+                    </View>
+                    <View style={s.expenseRight}>
+                      <Text style={s.expenseAmount}>{formatCurrency(exp.total)}</Text>
+                      <Text style={s.expensePct}>{expPct.toFixed(0)}%</Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </Card>
+          </Section>
+        )}
 
         {/* ── Top products ─────────────────────────────────────────────────── */}
         {topProducts.length > 0 && (
@@ -722,6 +877,12 @@ const s = StyleSheet.create({
     position: 'absolute', width: 130, height: 130, borderRadius: 65,
     backgroundColor: 'rgba(255,255,255,0.04)', bottom: -30, left: 20,
   },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 2,
+  },
   headerTitle: {
     fontSize: TYPOGRAPHY.fontSize['2xl'],
     fontWeight: TYPOGRAPHY.fontWeight.bold,
@@ -732,6 +893,19 @@ const s = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.sm,
     color: 'rgba(255,255,255,0.65)',
     marginBottom: SPACING.md,
+  },
+  receiptsButton: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.full,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  receiptsButtonText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: '#FFFFFF',
   },
   periodWrap: { marginTop: SPACING.xs },
 
@@ -754,12 +928,13 @@ const s = StyleSheet.create({
   },
 
   // Payment card layout
-  payCard: {
+  payCardContent: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: SPACING.lg,
+    flexWrap: 'wrap',
   },
-  payLegend: { flex: 1 },
+  payLegend: { flex: 1, minWidth: 180 },
   payLegendTitle: {
     fontSize: 12,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
@@ -780,5 +955,70 @@ const s = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.text,
     marginTop: 2,
+  },
+
+  // Expense breakdown
+  expenseHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: SPACING.md,
+    marginBottom: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  expenseHeaderTitle: {
+    fontSize: 13,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  expenseHeaderValue: {
+    fontSize: 18,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#EF4444',
+  },
+  expenseRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#F1F5F9',
+  },
+  expenseLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    flex: 1,
+  },
+  expenseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  expenseCategory: {
+    fontSize: 13,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.text,
+    flex: 1,
+  },
+  expenseCount: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+  },
+  expenseRight: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  expenseAmount: {
+    fontSize: 14,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.text,
+  },
+  expensePct: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
   },
 });

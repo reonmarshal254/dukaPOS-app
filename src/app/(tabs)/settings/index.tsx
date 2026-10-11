@@ -4,6 +4,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Linking,
   Alert,
   ActivityIndicator,
 } from 'react-native';
@@ -99,6 +100,9 @@ export default function SettingsScreen() {
   const notifDot = notifStatus !== 'granted';
 
   const settingsGroups = [
+    // PRICING_REMOVED: Subscription section removed
+    // Uncomment below to restore pricing functionality
+    /*
     {
       title: 'Subscription',
       items: [
@@ -120,6 +124,7 @@ export default function SettingsScreen() {
         },
       ],
     },
+    */
     {
       title: 'Security',
       items: [
@@ -351,11 +356,48 @@ export default function SettingsScreen() {
           </View>
 
           {/* ── App version footer ───────────────────────────────────────── */}
-          <View style={styles.versionContainer}>
-            <Text style={styles.versionText}>DukaPOS v1.0.0</Text>
-            <Text style={styles.versionSubtext}>
-              Built with ❤️ for grocery &amp; retail businesses
-            </Text>
+          <View style={styles.footerContainer}>
+            <LinearGradient
+              colors={['#2563EB', '#1E40AF', '#1E3A8A']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.footerGradient}
+            >
+              {/* Decorative circles */}
+              <View style={styles.footerDecor1} />
+              <View style={styles.footerDecor2} />
+              
+              {/* App info */}
+              <View style={styles.footerContent}>
+                <View style={styles.footerLogoContainer}>
+                  <View style={styles.footerLogo}>
+                    <Text style={styles.footerLogoText}>DP</Text>
+                  </View>
+                  <Text style={styles.footerAppName}>DukaPOS</Text>
+                  <Text style={styles.footerVersion}>v1.0.0</Text>
+                </View>
+
+                <Text style={styles.footerTagline}>
+                  Built with ❤️ for grocery & retail businesses
+                </Text>
+
+                <View style={styles.footerDivider} />
+
+                <TouchableOpacity
+                  style={styles.footerDevButton}
+                  onPress={() => Linking.openURL('https://mcokoth-tech-flow.base44.app/')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.footerDevLabel}>Developed by</Text>
+                  <Text style={styles.footerDevName}>MCOKOTH TECHNOLOGIES</Text>
+                  
+                </TouchableOpacity>
+
+                <Text style={styles.footerCopyright}>
+                  © {new Date().getFullYear()} DukaPOS. All rights reserved.
+                </Text>
+              </View>
+            </LinearGradient>
           </View>
         </View>
       </ScrollView>
@@ -484,9 +526,113 @@ const styles = StyleSheet.create({
   },
 
   // Version footer
-  versionContainer: {
-    paddingVertical: SPACING.xl,
+  footerContainer: {
+    marginTop: SPACING.xl,
+    overflow: 'hidden',
+  },
+  footerGradient: {
+    paddingVertical: SPACING.xl * 2,
+    paddingHorizontal: SPACING.lg,
+    position: 'relative',
+  },
+  footerDecor1: {
+    position: 'absolute',
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    top: -50,
+    right: -30,
+  },
+  footerDecor2: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    bottom: -20,
+    left: -20,
+  },
+  footerContent: {
     alignItems: 'center',
+    zIndex: 1,
+  },
+  footerLogoContainer: {
+    alignItems: 'center',
+    marginBottom: SPACING.lg,
+  },
+  footerLogo: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  footerLogoText: {
+    fontSize: 24,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#FFFFFF',
+  },
+  footerAppName: {
+    fontSize: TYPOGRAPHY.fontSize['2xl'],
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#FFFFFF',
+    marginBottom: SPACING.xs / 2,
+  },
+  footerVersion: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: 'rgba(255, 255, 255, 0.8)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs / 2,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  footerTagline: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    marginBottom: SPACING.lg,
+    lineHeight: 20,
+  },
+  footerDivider: {
+    width: 60,
+    height: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 1,
+    marginBottom: SPACING.lg,
+  },
+  footerDevButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.xl,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+    marginBottom: SPACING.lg,
+  },
+  footerDevLabel: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginBottom: SPACING.xs / 2,
+  },
+  footerDevName: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#FFFFFF',
+    marginBottom: SPACING.xs / 2,
+  },
+  footerDevIcon: {
+    fontSize: 20,
+  },
+  footerCopyright: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: 'rgba(255, 255, 255, 0.6)',
+    textAlign: 'center',
   },
   versionText: {
     fontSize: TYPOGRAPHY.fontSize.sm,

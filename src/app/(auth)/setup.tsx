@@ -102,21 +102,8 @@ export default function SetupScreen() {
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
-    // Double-check connectivity before writing (welcome screen already checked
-    // but setup can take time — user might have gone offline)
-    try {
-      const res = await fetch('https://dukapos-gjfx.onrender.com/health', {
-        method: 'HEAD',
-        signal: AbortSignal.timeout(5000),
-      });
-      if (!res.ok && res.status >= 500) throw new Error('server');
-    } catch {
-      Alert.alert(
-        'No Internet',
-        'An internet connection is required to complete setup so your business is registered. Please reconnect and try again.'
-      );
-      return;
-    }
+    // PRICING_REMOVED: No online check required
+    // App works fully offline - device registration happens automatically when online
 
     setLoading(true);
 

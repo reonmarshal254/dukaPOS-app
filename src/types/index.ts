@@ -42,6 +42,7 @@ export interface Product {
   description?: string;
   categoryId?: UUID;
   barcode?: string;
+  sku?: string;
   imageUrl?: string;
   localImagePath?: string;
   purchasePrice: number; // in minor currency units (cents)
@@ -54,6 +55,27 @@ export interface Product {
   updatedAt: ISODateTime;
 }
 
+// Product Variant entity
+export interface ProductVariant {
+  id: UUID;
+  productId: UUID;
+  name: string; // e.g., "500ml", "1 Liter", "Small", "Medium"
+  unit: string;
+  sellingPrice: number; // in minor currency units
+  purchasePrice?: number;
+  barcode?: string;
+  sku?: string;
+  isDefault: boolean; // one variant should be default
+  isActive: boolean;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+// Product with variants
+export interface ProductWithVariants extends Product {
+  variants: ProductVariant[];
+}
+
 // Supplier entity
 export interface Supplier {
   id: UUID;
@@ -61,9 +83,29 @@ export interface Supplier {
   phone?: string;
   email?: string;
   address?: string;
+  rating?: number; // 1-5 stars
   notes?: string;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
+}
+
+// Supplier supply entity
+export interface SupplierSupply {
+  id: UUID;
+  supplierId: UUID;
+  productName: string;
+  quantity: number;
+  unit: string;
+  amount: number; // in minor units
+  supplyDate: ISODateTime;
+  notes?: string;
+  createdAt: ISODateTime;
+}
+
+// Supplier with supply history
+export interface SupplierWithSupplies extends Supplier {
+  supplies: SupplierSupply[];
+  totalSupplied: number; // total amount in minor units
 }
 
 // Customer entity
@@ -200,6 +242,17 @@ export interface CustomerLedgerEntry {
   createdAt: ISODateTime;
 }
 
+// Expense categories
+export enum ExpenseCategory {
+  ELECTRICITY = 'Electricity',
+  FARE = 'Fare/Transport',
+  STOCK_PURCHASE = 'Stock Purchase',
+  RENT = 'Rent',
+  EXPIRED_PRODUCT = 'Expired Product',
+  DAMAGED_PRODUCT = 'Damaged Product',
+  OTHERS = 'Others',
+}
+
 // Expense entity
 export interface Expense {
   id: UUID;
@@ -207,6 +260,7 @@ export interface Expense {
   description: string;
   amount: number; // in minor units
   paymentMethod: PaymentMethod;
+  date: ISODateTime; // when expense occurred
   notes?: string;
   createdAt: ISODateTime;
 }
@@ -294,7 +348,54 @@ export interface SaleWithDetails extends Sale {
 // Cart item (for POS)
 export interface CartItem {
   product: Product;
+  variant?: ProductVariant; // Optional variant if product has variants
   quantity: number;
   discount: number;
   total: number;
+}
+
+// Receipt entity for saved receipts
+export interface SavedReceipt {
+  id: UUID;
+  saleId: UUID;
+  receiptNumber: string;
+  receiptData: string; // JSON string
+  imagePath?: string;
+  createdAt: ISODateTime;
+}
+
+// Receipt data structure (used for display and storage)
+export interface ReceiptData {
+  receiptNumber: string;
+  date: string;
+  time: string;
+  items: ReceiptItem[];
+  subtotal: number; // minor units
+  discount: number; // percentage
+  total: number; // minor units
+  amountPaid: number; // minor units
+  change: number; // minor units
+  balance: number; // same as change, for display
+  cashTendered?: number; // for cash payments, in minor units
+  paymentMethod: string;
+  paymentMethods?: PaymentEntry[]; // for split payments
+  businessName: string;
+  businessAddress?: string;
+  businessPhone?: string;
+  cashier?: string;
+}
+
+// Receipt item structure
+export interface ReceiptItem {
+  name: string;
+  quantity: number;
+  unitPrice: number; // minor units
+  total: number; // minor units
+}
+
+// Payment entry for receipts
+export interface PaymentEntry {
+  method: string;
+  amount: number; // minor units
+  reference?: string;
 }

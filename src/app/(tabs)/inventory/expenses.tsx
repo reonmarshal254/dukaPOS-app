@@ -18,15 +18,14 @@ const { width } = Dimensions.get('window');
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const CATEGORIES = [
-  { label: 'All',         value: '' },
-  { label: 'Rent',        value: 'Rent',        emoji: '🏠' },
-  { label: 'Utilities',   value: 'Utilities',   emoji: '💡' },
-  { label: 'Salaries',    value: 'Salaries',    emoji: '👥' },
-  { label: 'Stock',       value: 'Stock',       emoji: '📦' },
-  { label: 'Transport',   value: 'Transport',   emoji: '🚗' },
-  { label: 'Marketing',   value: 'Marketing',   emoji: '📢' },
-  { label: 'Maintenance', value: 'Maintenance', emoji: '🔧' },
-  { label: 'Other',       value: 'Other',       emoji: '📋' },
+  { label: 'All',             value: '' },
+  { label: 'Electricity',     value: 'Electricity',     emoji: '⚡' },
+  { label: 'Fare/Transport',  value: 'Fare/Transport',  emoji: '🚗' },
+  { label: 'Stock Purchase',  value: 'Stock Purchase',  emoji: '📦' },
+  { label: 'Rent',            value: 'Rent',            emoji: '🏠' },
+  { label: 'Expired Product', value: 'Expired Product', emoji: '🗑️' },
+  { label: 'Damaged Product', value: 'Damaged Product', emoji: '💔' },
+  { label: 'Others',          value: 'Others',          emoji: '📋' },
 ];
 
 const PAYMENT_METHODS = [
@@ -51,15 +50,16 @@ function AddExpenseModal({
   const insets = useSafeAreaInsets();
   const createExpense = useCreateExpense();
 
-  const [category,    setCategory]    = useState('Other');
+  const [category,    setCategory]    = useState('Others');
   const [description, setDescription] = useState('');
   const [amount,      setAmount]      = useState('');
   const [method,      setMethod]      = useState<PaymentMethod>(PaymentMethod.CASH);
   const [notes,       setNotes]       = useState('');
+  const [date,        setDate]        = useState(new Date().toISOString());
 
   const reset = () => {
-    setCategory('Other'); setDescription(''); setAmount('');
-    setMethod(PaymentMethod.CASH); setNotes('');
+    setCategory('Others'); setDescription(''); setAmount('');
+    setMethod(PaymentMethod.CASH); setNotes(''); setDate(new Date().toISOString());
   };
 
   const handleClose = () => { reset(); onClose(); };
@@ -75,6 +75,7 @@ function AddExpenseModal({
         description: description.trim(),
         amount: toMinorUnits(amt),
         paymentMethod: method,
+        date,
         notes: notes.trim() || undefined,
       });
       handleClose();

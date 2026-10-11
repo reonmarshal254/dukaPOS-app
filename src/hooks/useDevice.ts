@@ -47,9 +47,16 @@ async function resolveDeviceId(): Promise<string> {
 }
 
 // ─── Report to admin backend ───────────────────────────────────────────────────
+// PRICING_REMOVED: Device registration to admin backend disabled
+// App is now free and doesn't need to phone home
 // Fire-and-forget — never blocks the app, always logs the result so you can
 // confirm it's reaching the server.
 async function reportToAdmin(info: DeviceInfo, businessId: string): Promise<void> {
+  // PRICING_REMOVED: Admin registration disabled
+  console.log('[useDevice] Admin registration disabled (app is now free)');
+  return;
+  
+  /* Original code preserved for future restoration:
   try {
     const biz = await executeQuerySingle<{
       name: string; owner_name: string; phone: string; location: string;
@@ -88,6 +95,7 @@ async function reportToAdmin(info: DeviceInfo, businessId: string): Promise<void
   } catch (err: any) {
     console.warn('[useDevice] Admin registration error:', err.message);
   }
+  */
 }
 
 // ─── Local DB upsert ──────────────────────────────────────────────────────────

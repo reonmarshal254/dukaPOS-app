@@ -90,13 +90,9 @@ export default {
           sounds: [],
         },
       ],
-      [
-        'expo-barcode-scanner',
-        {
-          cameraPermission:
-            'DukaPOS accesses your camera to scan product barcodes.',
-        },
-      ],
+
+      '@react-native-community/datetimepicker',
+      'expo-sharing',
     ],
 
     experiments: {
@@ -109,16 +105,22 @@ export default {
       paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY || 'pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
       isProduction: IS_PRODUCTION,
       appVersion: '1.0.0',
-      // EAS project config — replace with your real project ID after running
-      // `npx eas-cli@latest init` the first time
+      // Subscription plan prices (KES in minor units — cents)
+      planPrices: {
+        daily:    parseInt(process.env.PLAN_DAILY_PRICE    || '10000',  10),
+        weekly:   parseInt(process.env.PLAN_WEEKLY_PRICE   || '60000',  10),
+        monthly:  parseInt(process.env.PLAN_MONTHLY_PRICE  || '200000', 10),
+        lifetime: parseInt(process.env.PLAN_LIFETIME_PRICE || '1000000',10),
+      },
+      // EAS project ID
       eas: {
-        projectId: 'your-eas-project-id',
+        projectId: 'afc8dce1-639a-4998-8a9c-13413df21fb7',
       },
     },
 
-    // OTA updates — fill in real project ID after EAS init
+    // OTA updates
     updates: {
-      url: 'https://u.expo.dev/your-eas-project-id',
+      url: 'https://u.expo.dev/afc8dce1-639a-4998-8a9c-13413df21fb7',
       fallbackToCacheTimeout: 0,
     },
     runtimeVersion: {

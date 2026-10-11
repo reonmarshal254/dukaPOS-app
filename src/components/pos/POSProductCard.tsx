@@ -5,6 +5,7 @@ import { formatCurrency } from '../../utils/currency';
 import { COLORS } from '../../constants/colors';
 import { SPACING, BORDER_RADIUS } from '../../constants/spacing';
 import { TYPOGRAPHY } from '../../constants/typography';
+import { ShoppingBagIcon } from '../common/Icons';
 
 interface POSProductCardProps {
   product: Product;
@@ -73,7 +74,7 @@ export default function POSProductCard({
         )}
       </View>
 
-      {/* Add to Cart Button - Compact */}
+      {/* Add to Cart Button */}
       <TouchableOpacity
         style={[
           styles.addButton,
@@ -83,12 +84,18 @@ export default function POSProductCard({
         disabled={isOutOfStock}
         activeOpacity={0.7}
       >
-        <Text style={[
-          styles.addButtonText,
-          isOutOfStock && styles.addButtonTextDisabled,
-        ]}>
-          {isOutOfStock ? 'Out' : '+'}
-        </Text>
+        <View style={styles.addButtonContent}>
+          <ShoppingBagIcon 
+            size={16} 
+            color={isOutOfStock ? COLORS.textSecondary : COLORS.textInverse} 
+          />
+          <Text style={[
+            styles.addButtonText,
+            isOutOfStock && styles.addButtonTextDisabled,
+          ]}>
+            {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
+          </Text>
+        </View>
       </TouchableOpacity>
     </View>
   );
@@ -193,18 +200,31 @@ const styles = StyleSheet.create({
   },
   addButton: {
     backgroundColor: COLORS.primary,
-    paddingVertical: SPACING.sm,
+    paddingVertical: SPACING.sm + 2,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 36,
+    minHeight: 40,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   addButtonDisabled: {
     backgroundColor: COLORS.border,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  addButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
   },
   addButtonText: {
-    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontSize: TYPOGRAPHY.fontSize.sm,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.textInverse,
+    letterSpacing: 0.3,
   },
   addButtonTextDisabled: {
     color: COLORS.textSecondary,

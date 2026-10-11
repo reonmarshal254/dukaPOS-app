@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { isDatabaseInitialized } from '../database';
-import { isPINSet, getDeviceID, isInGracePeriod, getGraceRemainingMs } from '../services/secureStorage';
-import { checkLicence } from '../services/licenceService';
+import { isPINSet } from '../services/secureStorage';
+// PRICING_REMOVED: Licence checking imports disabled
+// import { getDeviceID, isInGracePeriod, getGraceRemainingMs } from '../services/secureStorage';
+// import { checkLicence } from '../services/licenceService';
 import { COLORS } from '../constants/colors';
 
 export default function Index() {
@@ -14,7 +16,7 @@ export default function Index() {
   useEffect(() => {
     async function checkAppState() {
       try {
-        // ── 1. First-run setup ─────────────────────────────────────────────
+        // ── 1. First-run ───────────────────────────────────────────────────
         const isInitialized = await isDatabaseInitialized();
         if (!isInitialized) {
           router.replace('/(auth)/welcome');
@@ -28,26 +30,31 @@ export default function Index() {
           return;
         }
 
-        // ── 3. Licence gate ────────────────────────────────────────────────
-        // checkLicence is offline-safe:
-        //  - Online  → verifies with server, blocks if truly invalid
-        //  - Offline → trusts valid cache OR grants grace period so POS works
-        // Subscriptions can only be purchased when online (enforced in payment.tsx)
+        // ── 3. Licence gate (DISABLED — App is now free) ──────────────────
+        // PRICING_REMOVED: All subscription checks disabled
+        // Payment flow screens preserved for future use but not enforced
+        // Original code commented below:
+        /*
         const deviceId = await getDeviceID();
-
         if (deviceId) {
           setStatus('Checking subscription…');
           const licence = await checkLicence(deviceId);
 
           if (!licence.valid) {
-            // New users get a 24h grace period before payment is required
-            const grace = await isInGracePeriod();
-            if (grace) {
-              const remainingMs = await getGraceRemainingMs();
-              const remainingHrs = Math.ceil(remainingMs / 3_600_000);
-              console.log(`[licence] Grace period active — ${remainingHrs}h remaining`);
-              // Continue to unlock — grace period applies
+            if (licence.offline) {
+              // Offline + no valid cache → apply 24h new-user grace period only
+              const grace = await isInGracePeriod();
+              if (grace) {
+                const hrs = Math.ceil((await getGraceRemainingMs()) / 3_600_000);
+                console.log(`[licence] Offline grace — ${hrs}h left`);
+                // Allow through
+              } else {
+                // Offline, no grace, no valid licence — still allow through
+                // The tabs layout will enforce as soon as the device is online
+                console.log('[licence] Offline, no grace — will enforce when online');
+              }
             } else {
+              // Online + server confirmed invalid → hard block
               router.replace({
                 pathname: '/(auth)/payment-required',
                 params: { deviceId, reason: licence.reason ?? 'no_licence' },
@@ -56,12 +63,12 @@ export default function Index() {
             }
           }
         }
+        */
 
         // ── 4. Unlock ──────────────────────────────────────────────────────
         router.replace('/(auth)/unlock');
       } catch (error) {
         console.error('Error checking app state:', error);
-        // On unexpected error → unlock anyway so POS is never hard-blocked
         router.replace('/(auth)/unlock');
       } finally {
         setIsLoading(false);

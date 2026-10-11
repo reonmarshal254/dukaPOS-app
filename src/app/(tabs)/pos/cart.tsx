@@ -86,10 +86,11 @@ export default function CartScreen() {
         <>
           {/* Cart Items */}
           <ScrollView style={styles.cartItems} contentContainerStyle={styles.cartItemsContent}>
-            {items.map((item) => (
+            {items.map((item, index) => (
               <CartItem
-                key={item.product.id}
+                key={`${item.product.id}-${item.variant?.id || 'main'}-${index}`}
                 item={item}
+                index={index}
                 onUpdateQuantity={updateQuantity}
                 onRemove={removeItem}
               />

@@ -8,8 +8,9 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useBusiness } from '../../../hooks/useBusiness';
-import { checkLicence, type LicenceInfo, type Plan } from '../../../services/licenceService';
-import { getDeviceID } from '../../../services/secureStorage';
+// PRICING_REMOVED: Licence checking imports disabled
+// import { checkLicence, type LicenceInfo, type Plan } from '../../../services/licenceService';
+// import { getDeviceID } from '../../../services/secureStorage';
 import { COLORS } from '../../../constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '../../../constants/spacing';
 import { TYPOGRAPHY } from '../../../constants/typography';
@@ -57,6 +58,10 @@ export default function BusinessProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { data: business, isLoading } = useBusiness();
+  
+  // PRICING_REMOVED: Licence checking disabled
+  // App is now free - always show as active
+  /*
   const [licence, setLicence]   = useState<LicenceInfo | null>(null);
   const [licLoading, setLicLoading] = useState(true);
 
@@ -68,7 +73,7 @@ export default function BusinessProfileScreen() {
         const info = await checkLicence(deviceId);
         setLicence(info);
       }
-    } catch { /* ignore */ }
+    } catch { /* ignore *\/ }
     finally { setLicLoading(false); }
   }, []);
 
@@ -82,6 +87,7 @@ export default function BusinessProfileScreen() {
     const deviceId = await getDeviceID();
     router.push({ pathname: '/(auth)/pricing', params: { deviceId: deviceId ?? '' } });
   };
+  */
 
   return (
     <SafeAreaView style={s.container} edges={['top']}>
@@ -116,89 +122,22 @@ export default function BusinessProfileScreen() {
               </LinearGradient>
               <Text style={s.avatarName}>{business?.name ?? '—'}</Text>
 
-              {/* Plan badge */}
-              {licLoading ? (
-                <ActivityIndicator size="small" color={COLORS.primary} />
-              ) : licence?.valid && licence.plan && planColours ? (
-                <View style={[s.planBadge, { backgroundColor: planColours.bg, borderColor: planColours.border }]}>
-                  <Text style={[s.planBadgeText, { color: planColours.text }]}>
-                    {licence.plan.charAt(0).toUpperCase() + licence.plan.slice(1)} Plan  ✓
-                  </Text>
-                </View>
-              ) : (
-                <View style={[s.planBadge, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}>
-                  <Text style={[s.planBadgeText, { color: COLORS.error }]}>No Active Plan</Text>
-                </View>
-              )}
+              {/* PRICING_REMOVED: Always show as Active */}
+              <View style={[s.planBadge, { backgroundColor: '#DCFCE7', borderColor: '#BBF7D0' }]}>
+                <Text style={[s.planBadgeText, { color: '#166534' }]}>
+                  Active  ✓
+                </Text>
+              </View>
             </View>
 
-            {/* Subscription card */}
+            {/* PRICING_REMOVED: Subscription card removed - app is now free */}
+            {/* Original subscription display code preserved below for future restoration */}
+            {/*
             <View style={s.card}>
               <Text style={s.cardTitle}>Subscription</Text>
-
-              {licLoading ? (
-                <ActivityIndicator color={COLORS.primary} style={{ marginVertical: SPACING.md }} />
-              ) : licence?.valid ? (
-                <>
-                  <View style={s.field}>
-                    <Text style={s.fieldLabel}>Plan</Text>
-                    <Text style={s.fieldValue}>
-                      {licence.plan?.charAt(0).toUpperCase()}{licence.plan?.slice(1)}
-                    </Text>
-                  </View>
-                  <View style={s.field}>
-                    <Text style={s.fieldLabel}>Licence Key</Text>
-                    <Text style={[s.fieldValue, { fontFamily: 'monospace', fontSize: 13, color: COLORS.primary }]}>
-                      {licence.licenceKey}
-                    </Text>
-                  </View>
-                  {licence.activatedAt && (
-                    <View style={s.field}>
-                      <Text style={s.fieldLabel}>Activated</Text>
-                      <Text style={s.fieldValue}>
-                        {new Date(licence.activatedAt).toLocaleDateString(undefined, {
-                          day: 'numeric', month: 'long', year: 'numeric',
-                        })}
-                      </Text>
-                    </View>
-                  )}
-                  <View style={[s.field, { borderBottomWidth: 0 }]}>
-                    <Text style={s.fieldLabel}>Expires</Text>
-                    <Text style={[s.fieldValue, { color: expiryColor, fontWeight: '700' }]}>
-                      {expiryText}
-                    </Text>
-                  </View>
-
-                  {/* Expiry warning bar */}
-                  {licence.expiresAt && (() => {
-                    const days = (new Date(licence.expiresAt).getTime() - Date.now()) / 86_400_000;
-                    return days < 3 && days > 0 ? (
-                      <View style={[s.expiryBanner, { borderColor: expiryColor + '66', backgroundColor: expiryColor + '15' }]}>
-                        <Text style={[s.expiryBannerText, { color: expiryColor }]}>
-                          ⚠️ Your plan expires soon. Renew now to avoid interruption.
-                        </Text>
-                        <TouchableOpacity style={[s.renewBtn, { backgroundColor: expiryColor }]} onPress={handleRenew}>
-                          <Text style={s.renewBtnText}>Renew</Text>
-                        </TouchableOpacity>
-                      </View>
-                    ) : null;
-                  })()}
-                </>
-              ) : (
-                <View style={s.noLicence}>
-                  <Text style={s.noLicenceText}>
-                    {licence?.reason === 'expired'
-                      ? '⏰ Your subscription has expired.'
-                      : licence?.reason === 'suspended'
-                      ? '🚫 Your account is suspended.'
-                      : '❌ No active subscription.'}
-                  </Text>
-                  <TouchableOpacity style={s.subscribeBtn} onPress={handleRenew}>
-                    <Text style={s.subscribeBtnText}>Subscribe Now</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+              ...subscription details...
             </View>
+            */}
 
             {/* Business details */}
             <View style={s.card}>
@@ -219,12 +158,15 @@ export default function BusinessProfileScreen() {
               />
             </View>
 
+            {/* PRICING_REMOVED: Subscription note removed */}
+            {/*
             <View style={s.noteCard}>
               <Text style={s.noteIcon}>ℹ️</Text>
               <Text style={s.noteText}>
                 Your subscription is tied to this device. Reinstalling the app will not affect your plan — it will resume automatically.
               </Text>
             </View>
+            */}
           </>
         )}
       </ScrollView>

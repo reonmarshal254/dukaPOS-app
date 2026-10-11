@@ -6,6 +6,8 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  Modal,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -24,6 +26,7 @@ export default function ProductsScreen() {
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+  const [dropdownVisible, setDropdownVisible] = useState(false);
 
   const { data: products = [], isLoading: isLoadingProducts } = useProducts({
     isActive: true,
@@ -32,6 +35,8 @@ export default function ProductsScreen() {
   });
 
   const { data: categories = [] } = useCategories();
+  
+  const selectedCategory = categories.find(c => c.id === categoryId);
 
   const handleProductPress = (productId: string) => {
     router.push({
@@ -85,54 +90,90 @@ export default function ProductsScreen() {
 
       <View style={styles.filters}>
         <Input
-          placeholder="Search products..."
+          placeholder="Search products by name, SKU..."
           value={search}
           onChangeText={setSearch}
           style={styles.searchInput}
         />
 
         {categories.length > 0 && (
-          <View style={styles.categoryFilters}>
-            <TouchableOpacity
-              style={[
-                styles.categoryChip,
-                !categoryId && styles.categoryChipActive,
-              ]}
-              onPress={() => setCategoryId(undefined)}
-            >
-              <Text
-                style={[
-                  styles.categoryChipText,
-                  !categoryId && styles.categoryChipTextActive,
-                ]}
-              >
-                All
-              </Text>
-            </TouchableOpacity>
-            {categories.map((category) => (
+          <TouchableOpacity
+            style={styles.dropdown}
+            onPress={() => setDropdownVisible(true)}
+          >
+            <Text style={styles.dropdownLabel}>Category:</Text>
+            <Text style={styles.dropdownValue}>
+              {selectedCategory?.name || 'All Categories'}
+            </Text>
+            <Text style={styles.dropdownIcon}>▼</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Category Dropdown Modal */}
+      <Modal
+        visible={dropdownVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDropdownVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setDropdownVisible(false)}
+        >
+          <View style={styles.dropdownMenu}>
+            <Text style={styles.dropdownTitle}>Select Category</Text>
+            <ScrollView style={styles.dropdownList}>
               <TouchableOpacity
-                key={category.id}
                 style={[
-                  styles.categoryChip,
-                  categoryId === category.id && styles.categoryChipActive,
+                  styles.dropdownItem,
+                  !categoryId && styles.dropdownItemActive,
                 ]}
-                onPress={() =>
-                  setCategoryId(categoryId === category.id ? undefined : category.id)
-                }
+                onPress={() => {
+                  setCategoryId(undefined);
+                  setDropdownVisible(false);
+                }}
               >
                 <Text
                   style={[
-                    styles.categoryChipText,
-                    categoryId === category.id && styles.categoryChipTextActive,
+                    styles.dropdownItemText,
+                    !categoryId && styles.dropdownItemTextActive,
                   ]}
                 >
-                  {category.name}
+                  All Categories
                 </Text>
+                {!categoryId && <Text style={styles.checkmark}>✓</Text>}
               </TouchableOpacity>
-            ))}
+              {categories.map((category) => (
+                <TouchableOpacity
+                  key={category.id}
+                  style={[
+                    styles.dropdownItem,
+                    categoryId === category.id && styles.dropdownItemActive,
+                  ]}
+                  onPress={() => {
+                    setCategoryId(category.id);
+                    setDropdownVisible(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.dropdownItemText,
+                      categoryId === category.id && styles.dropdownItemTextActive,
+                    ]}
+                  >
+                    {category.name}
+                  </Text>
+                  {categoryId === category.id && (
+                    <Text style={styles.checkmark}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
-        )}
-      </View>
+        </TouchableOpacity>
+      </Modal>
 
       {isLoadingProducts ? (
         <View style={styles.loadingContainer}>
@@ -196,6 +237,88 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     marginBottom: 0,
+  },
+  dropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    marginTop: SPACING.sm,
+  },
+  dropdownLabel: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    marginRight: SPACING.xs,
+  },
+  dropdownValue: {
+    flex: 1,
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.text,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+  dropdownIcon: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.xl,
+  },
+  dropdownMenu: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: BORDER_RADIUS.xl,
+    width: '100%',
+    maxHeight: 400,
+    overflow: 'hidden',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  dropdownTitle: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.text,
+    padding: SPACING.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  dropdownList: {
+    maxHeight: 320,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+  },
+  dropdownItemActive: {
+    backgroundColor: '#EFF6FF',
+  },
+  dropdownItemText: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.text,
+  },
+  dropdownItemTextActive: {
+    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+  checkmark: {
+    fontSize: 18,
+    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   categoryFilters: {
     flexDirection: 'row',

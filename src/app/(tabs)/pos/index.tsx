@@ -18,14 +18,19 @@ import { useProducts } from '../../../hooks/useProducts';
 import { useCartStore } from '../../../stores/cartStore';
 import POSProductCard from '../../../components/pos/POSProductCard';
 import BarcodeScanner from '../../../components/common/BarcodeScanner';
+import VariantSelectorModal from '../../../components/pos/VariantSelectorModal';
 import { ScanIcon } from '../../../components/common/Icons';
-import { Product } from '../../../types';
+import { Product, ProductVariant } from '../../../types';
 import productRepository from '../../../services/repositories/productRepository';
+import * as variantRepository from '../../../services/repositories/productVariantRepository';
 
 export default function POSScreen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [scannerVisible, setScannerVisible] = useState(false);
+  const [variantModalVisible, setVariantModalVisible] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [productVariants, setProductVariants] = useState<ProductVariant[]>([]);
   
   const { data: products = [], isLoading, refetch } = useProducts({
     isActive: true,
@@ -41,17 +46,55 @@ export default function POSScreen() {
     }, [refetch])
   );
 
-  const handleAddToCart = (product: Product) => {
+  const handleAddToCart = async (product: Product) => {
     if (product.currentQuantity === 0) {
       Alert.alert('Out of Stock', `${product.name} is currently out of stock.`);
       return;
     }
-    addItem(product, 1);
+
+    // Check if product has variants
+    try {
+      const hasVariants = await variantRepository.hasVariants(product.id);
+      
+      if (hasVariants) {
+        // Fetch variants and show selector
+        const variants = await variantRepository.getByProductId(product.id);
+        const activeVariants = variants.filter(v => v.isActive);
+        
+        if (activeVariants.length > 0) {
+          setSelectedProduct(product);
+          setProductVariants(activeVariants);
+          setVariantModalVisible(true);
+          return;
+        }
+      }
+      
+      // No variants, add main product directly
+      addItem(product, 1);
+    } catch (error) {
+      console.error('Error checking variants:', error);
+      // Fallback to adding main product
+      addItem(product, 1);
+    }
+  };
+
+  const handleVariantSelected = (variant: ProductVariant | null) => {
+    if (!selectedProduct) return;
+
+    if (variant) {
+      // Add variant to cart with variant info
+      addItem(selectedProduct, 1, variant);
+    } else {
+      // Add main product to cart
+      addItem(selectedProduct, 1);
+    }
   };
 
   const getQuantityInCart = (productId: string): number => {
-    const item = items.find(item => item.product.id === productId);
-    return item ? item.quantity : 0;
+    // Sum all quantities for this product (including all variants)
+    return items
+      .filter(item => item.product.id === productId)
+      .reduce((sum, item) => sum + item.quantity, 0);
   };
 
   const handleCartPress = () => {
@@ -176,6 +219,21 @@ export default function POSScreen() {
         onClose={() => setScannerVisible(false)}
         onBarcodeScanned={handleBarcodeScanned}
       />
+
+      {/* Variant Selector Modal */}
+      {selectedProduct && (
+        <VariantSelectorModal
+          visible={variantModalVisible}
+          onClose={() => {
+            setVariantModalVisible(false);
+            setSelectedProduct(null);
+            setProductVariants([]);
+          }}
+          product={selectedProduct}
+          variants={productVariants}
+          onSelectVariant={handleVariantSelected}
+        />
+      )}
     </SafeAreaView>
   );
 }

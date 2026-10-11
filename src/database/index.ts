@@ -5,6 +5,145 @@ import { DB_CONFIG } from '../constants/config';
 let database: SQLite.SQLiteDatabase | null = null;
 
 /**
+ * Database migrations
+ */
+async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
+  try {
+    // Get current schema version
+    const versionResult = await db.getFirstAsync<{ user_version: number }>(
+      'PRAGMA user_version;'
+    );
+    const currentVersion = versionResult?.user_version || 0;
+
+    console.log(`Current database version: ${currentVersion}`);
+
+    // Migration 1: Add SKU field to products table
+    if (currentVersion < 1) {
+      console.log('Running migration 1: Adding SKU field to products table');
+      await db.execAsync(`
+        ALTER TABLE products ADD COLUMN sku TEXT;
+      `);
+      await db.execAsync(`
+        CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
+      `);
+      await db.execAsync('PRAGMA user_version = 1;');
+      console.log('Migration 1 completed');
+    }
+
+    // Migration 2: Add rating to suppliers and date to expenses
+    if (currentVersion < 2) {
+      console.log('Running migration 2: Enhancing suppliers and expenses tables');
+      await db.execAsync(`
+        ALTER TABLE suppliers ADD COLUMN rating INTEGER DEFAULT 0;
+      `);
+      await db.execAsync(`
+        ALTER TABLE expenses ADD COLUMN date TEXT;
+      `);
+      // Update existing expenses to have date = created_at
+      await db.execAsync(`
+        UPDATE expenses SET date = created_at WHERE date IS NULL;
+      `);
+      await db.execAsync(`
+        CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
+      `);
+      await db.execAsync(`
+        CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category);
+      `);
+      await db.execAsync('PRAGMA user_version = 2;');
+      console.log('Migration 2 completed');
+    }
+
+    // Migration 3: Create supplier_supplies table
+    if (currentVersion < 3) {
+      console.log('Running migration 3: Creating supplier_supplies table');
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS supplier_supplies (
+          id TEXT PRIMARY KEY NOT NULL,
+          supplierId TEXT NOT NULL,
+          productName TEXT NOT NULL,
+          quantity REAL NOT NULL,
+          unit TEXT NOT NULL,
+          amount INTEGER NOT NULL,
+          supplyDate TEXT NOT NULL,
+          notes TEXT,
+          createdAt TEXT NOT NULL,
+          FOREIGN KEY (supplierId) REFERENCES suppliers(id) ON DELETE CASCADE
+        );
+      `);
+      await db.execAsync(`
+        CREATE INDEX IF NOT EXISTS idx_supplier_supplies_supplier ON supplier_supplies(supplierId);
+      `);
+      await db.execAsync(`
+        CREATE INDEX IF NOT EXISTS idx_supplier_supplies_date ON supplier_supplies(supplyDate);
+      `);
+      await db.execAsync('PRAGMA user_version = 3;');
+      console.log('Migration 3 completed');
+    }
+
+    // Migration 4: Create product_variants table
+    if (currentVersion < 4) {
+      console.log('Running migration 4: Creating product_variants table');
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS product_variants (
+          id TEXT PRIMARY KEY NOT NULL,
+          productId TEXT NOT NULL,
+          name TEXT NOT NULL,
+          unit TEXT NOT NULL,
+          sellingPrice INTEGER NOT NULL,
+          purchasePrice INTEGER,
+          barcode TEXT,
+          sku TEXT,
+          isDefault INTEGER DEFAULT 0,
+          isActive INTEGER DEFAULT 1,
+          createdAt TEXT NOT NULL,
+          updatedAt TEXT NOT NULL,
+          FOREIGN KEY (productId) REFERENCES products(id) ON DELETE CASCADE
+        );
+      `);
+      await db.execAsync(`
+        CREATE INDEX IF NOT EXISTS idx_product_variants_product ON product_variants(productId);
+      `);
+      await db.execAsync(`
+        CREATE INDEX IF NOT EXISTS idx_product_variants_barcode ON product_variants(barcode);
+      `);
+      await db.execAsync(`
+        CREATE INDEX IF NOT EXISTS idx_product_variants_sku ON product_variants(sku);
+      `);
+      await db.execAsync('PRAGMA user_version = 4;');
+      console.log('Migration 4 completed');
+    }
+
+    // Migration 5: Create receipts table
+    if (currentVersion < 5) {
+      console.log('Running migration 5: Creating receipts table');
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS receipts (
+          id TEXT PRIMARY KEY NOT NULL,
+          sale_id TEXT NOT NULL UNIQUE,
+          receipt_number TEXT NOT NULL,
+          receipt_data TEXT NOT NULL,
+          image_path TEXT,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE
+        );
+      `);
+      await db.execAsync(`
+        CREATE INDEX IF NOT EXISTS idx_receipts_sale ON receipts(sale_id);
+      `);
+      await db.execAsync(`
+        CREATE INDEX IF NOT EXISTS idx_receipts_number ON receipts(receipt_number);
+      `);
+      await db.execAsync('PRAGMA user_version = 5;');
+      console.log('Migration 5 completed');
+    }
+
+  } catch (error) {
+    console.error('Migration error:', error);
+    throw error;
+  }
+}
+
+/**
  * Initialize the database and run migrations
  */
 export async function initializeDatabase(): Promise<SQLite.SQLiteDatabase> {
@@ -30,6 +169,9 @@ export async function initializeDatabase(): Promise<SQLite.SQLiteDatabase> {
     for (const indexSQL of CREATE_INDEXES) {
       await database.execAsync(indexSQL);
     }
+
+    // Run migrations
+    await runMigrations(database);
 
     console.log('Database initialized successfully');
     return database;

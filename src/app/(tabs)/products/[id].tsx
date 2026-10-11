@@ -21,9 +21,12 @@ import Input from '../../../components/common/Input';
 import Button from '../../../components/common/Button';
 import { useProduct, useUpdateProduct, useDeleteProduct } from '../../../hooks/useProducts';
 import { useCategories } from '../../../hooks/useCategories';
-import { toMinorUnits, toMajorUnits } from '../../../utils/currency';
+import { useProductVariants, useDeleteVariant } from '../../../hooks/useProductVariants';
+import AddVariantModal from '../../../components/products/AddVariantModal';
+import { toMinorUnits, toMajorUnits, formatCurrency } from '../../../utils/currency';
+import { PlusIcon, TrashIcon } from '../../../components/common/Icons';
 import { COLORS } from '../../../constants/colors';
-import { SPACING, BORDER_RADIUS } from '../../../constants/spacing';
+import { SPACING, BORDER_RADIUS, SHADOWS } from '../../../constants/spacing';
 import { TYPOGRAPHY } from '../../../constants/typography';
 
 const productSchema = z.object({
@@ -45,10 +48,13 @@ export default function EditProductScreen() {
   const [imageUri, setImageUri] = useState<string | undefined>();
   const [stockAdjustment, setStockAdjustment] = useState('0');
   const [adjustmentReason, setAdjustmentReason] = useState('');
+  const [addVariantVisible, setAddVariantVisible] = useState(false);
   
   const { data: product, isLoading } = useProduct(id);
+  const { data: variants = [] } = useProductVariants(id);
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
+  const deleteVariant = useDeleteVariant();
   const { data: categories = [] } = useCategories();
 
   const {
@@ -630,6 +636,89 @@ export default function EditProductScreen() {
                 disabled={updateProduct.isPending}
               />
             </View>
+
+            {/* Product Variants Section */}
+            <View style={styles.variantsSection}>
+              <View style={styles.variantsHeader}>
+                <View>
+                  <Text style={styles.sectionTitle}>Product Variants</Text>
+                  <Text style={styles.sectionSubtitle}>
+                    Different sizes or units with their own prices
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.addVariantBtn}
+                  onPress={() => setAddVariantVisible(true)}
+                >
+                  <PlusIcon size={16} color="#FFFFFF" />
+                  <Text style={styles.addVariantText}>Add Variant</Text>
+                </TouchableOpacity>
+              </View>
+
+              {variants.length === 0 ? (
+                <View style={styles.noVariants}>
+                  <Text style={styles.noVariantsText}>
+                    No variants yet. Add variants like different sizes (500ml, 1L) with their own prices.
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.variantsList}>
+                  {variants.map((variant) => (
+                    <View key={variant.id} style={styles.variantCard}>
+                      <View style={styles.variantMain}>
+                        <View style={{ flex: 1 }}>
+                          <View style={styles.variantNameRow}>
+                            <Text style={styles.variantName}>{variant.name}</Text>
+                            {variant.isDefault && (
+                              <View style={styles.defaultBadge}>
+                                <Text style={styles.defaultBadgeText}>Default</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={styles.variantUnit}>{variant.unit}</Text>
+                          {variant.barcode && (
+                            <Text style={styles.variantMeta}>Barcode: {variant.barcode}</Text>
+                          )}
+                          {variant.sku && (
+                            <Text style={styles.variantMeta}>SKU: {variant.sku}</Text>
+                          )}
+                        </View>
+                        <View style={styles.variantPrices}>
+                          <Text style={styles.variantPrice}>
+                            {formatCurrency(variant.sellingPrice)}
+                          </Text>
+                          {variant.purchasePrice && (
+                            <Text style={styles.variantCost}>
+                              Cost: {formatCurrency(variant.purchasePrice)}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.deleteVariantBtn}
+                        onPress={() => {
+                          Alert.alert(
+                            'Delete Variant',
+                            `Delete "${variant.name}"?`,
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              {
+                                text: 'Delete',
+                                style: 'destructive',
+                                onPress: () =>
+                                  deleteVariant.mutate({ id: variant.id, productId: id }),
+                              },
+                            ]
+                          );
+                        }}
+                      >
+                        <TrashIcon size={16} color={COLORS.error} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
           </View>
         </ScrollView>
 
@@ -650,6 +739,13 @@ export default function EditProductScreen() {
           />
         </View>
       </KeyboardAvoidingView>
+
+      <AddVariantModal
+        visible={addVariantVisible}
+        productId={id}
+        productName={product?.name || ''}
+        onClose={() => setAddVariantVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -813,6 +909,121 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize['2xl'],
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.primary,
+  },
+  variantsSection: {
+    marginTop: SPACING.xl,
+    paddingTop: SPACING.xl,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  variantsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: SPACING.md,
+  },
+  sectionSubtitle: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  addVariantBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+  },
+  addVariantText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#FFFFFF',
+  },
+  noVariants: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+  },
+  noVariantsText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  variantsList: {
+    gap: SPACING.sm,
+  },
+  variantCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.sm,
+  },
+  variantMain: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.md,
+    marginBottom: SPACING.xs,
+  },
+  variantNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    marginBottom: 2,
+  },
+  variantName: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.text,
+  },
+  defaultBadge: {
+    backgroundColor: COLORS.badgeSuccess,
+    borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  defaultBadgeText: {
+    fontSize: 10,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.success,
+  },
+  variantUnit: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+  },
+  variantMeta: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.textSecondary,
+  },
+  variantPrices: {
+    alignItems: 'flex-end',
+  },
+  variantPrice: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.primary,
+    marginBottom: 2,
+  },
+  variantCost: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.textSecondary,
+  },
+  deleteVariantBtn: {
+    position: 'absolute',
+    top: SPACING.sm,
+    right: SPACING.sm,
+    padding: SPACING.xs,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
   },
   footer: {
     padding: SPACING.lg,

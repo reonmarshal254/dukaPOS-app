@@ -27,9 +27,9 @@ export class ProductRepository {
     }
 
     if (options?.search) {
-      query += ' AND (name LIKE ? OR barcode LIKE ?)';
+      query += ' AND (name LIKE ? OR barcode LIKE ? OR sku LIKE ?)';
       const searchTerm = `%${options.search}%`;
-      params.push(searchTerm, searchTerm);
+      params.push(searchTerm, searchTerm, searchTerm);
     }
 
     query += ' ORDER BY name ASC';
@@ -65,6 +65,19 @@ export class ProductRepository {
   }
 
   /**
+   * Get product by SKU
+   */
+  async getBySku(sku: string): Promise<Product | null> {
+    const row = await executeQuerySingle<any>(
+      `SELECT * FROM ${TABLES.PRODUCTS} WHERE sku = ?`,
+      [sku]
+    );
+
+    if (!row) return null;
+    return this.mapRowToProduct(row);
+  }
+
+  /**
    * Create a new product
    */
   async create(data: {
@@ -72,6 +85,7 @@ export class ProductRepository {
     description?: string;
     categoryId?: string;
     barcode?: string;
+    sku?: string;
     imageUrl?: string;
     localImagePath?: string;
     purchasePrice: number;
@@ -79,12 +93,21 @@ export class ProductRepository {
     minStockThreshold?: number;
     unit?: string;
     initialQuantity?: number;
+    expiryDate?: string;
   }): Promise<Product> {
     // Check for duplicate barcode
     if (data.barcode) {
       const existing = await this.getByBarcode(data.barcode);
       if (existing) {
         throw new Error(`Product with barcode "${data.barcode}" already exists: ${existing.name}`);
+      }
+    }
+
+    // Check for duplicate SKU
+    if (data.sku) {
+      const existingSku = await this.getBySku(data.sku);
+      if (existingSku) {
+        throw new Error(`Product with SKU "${data.sku}" already exists: ${existingSku.name}`);
       }
     }
 
@@ -96,16 +119,17 @@ export class ProductRepository {
       // Insert product
       await db.runAsync(
         `INSERT INTO ${TABLES.PRODUCTS} (
-          id, name, description, category_id, barcode, image_url, local_image_path,
+          id, name, description, category_id, barcode, sku, image_url, local_image_path,
           purchase_price, selling_price, current_quantity, min_stock_threshold,
           unit, is_active, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           data.name,
           data.description || null,
           data.categoryId || null,
           data.barcode || null,
+          data.sku || null,
           data.imageUrl || null,
           data.localImagePath || null,
           data.purchasePrice,
@@ -137,7 +161,7 @@ export class ProductRepository {
             initialQty,               // remaining_quantity
             data.purchasePrice,       // purchase_cost
             null,                     // manufacturing_date
-            null,                     // expiry_date
+            data.expiryDate || null,  // expiry_date
             now,                      // received_at
             now,                      // created_at
           ]
@@ -167,6 +191,7 @@ export class ProductRepository {
       description: data.description,
       categoryId: data.categoryId,
       barcode: data.barcode,
+      sku: data.sku,
       imageUrl: data.imageUrl,
       localImagePath: data.localImagePath,
       purchasePrice: data.purchasePrice,
@@ -205,6 +230,11 @@ export class ProductRepository {
     if (data.barcode !== undefined) {
       updates.push('barcode = ?');
       values.push(data.barcode);
+    }
+
+    if (data.sku !== undefined) {
+      updates.push('sku = ?');
+      values.push(data.sku);
     }
 
     if (data.imageUrl !== undefined) {
@@ -334,6 +364,7 @@ export class ProductRepository {
       description: row.description,
       categoryId: row.category_id,
       barcode: row.barcode,
+      sku: row.sku,
       imageUrl: row.image_url,
       localImagePath: row.local_image_path,
       purchasePrice: row.purchase_price,

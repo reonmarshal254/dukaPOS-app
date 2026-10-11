@@ -6,7 +6,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { PLANS, type Plan } from '../../services/licenceService';
+import { PLANS, type Plan, type BillingPlan } from '../../services/licenceService';
 import { COLORS } from '../../constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/spacing';
 import { TYPOGRAPHY } from '../../constants/typography';
@@ -28,7 +28,7 @@ export default function PricingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { deviceId } = useLocalSearchParams<{ deviceId: string }>();
-  const [selected, setSelected] = useState<Plan>('monthly');
+  const [selected, setSelected] = useState<BillingPlan>('monthly');
 
   const plan = PLANS[selected];
 
@@ -58,7 +58,7 @@ export default function PricingScreen() {
 
           {/* Plan selector */}
           <View style={s.planGrid}>
-            {(Object.entries(PLANS) as [Plan, typeof PLANS[Plan]][]).map(([key, p]) => {
+            {(Object.entries(PLANS) as [BillingPlan, typeof PLANS[BillingPlan]][]).map(([key, p]) => {
               const active = selected === key;
               return (
                 <TouchableOpacity

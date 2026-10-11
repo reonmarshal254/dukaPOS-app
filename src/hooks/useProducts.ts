@@ -63,6 +63,7 @@ export function useCreateProduct() {
       description?: string;
       categoryId?: string;
       barcode?: string;
+      sku?: string;
       imageUrl?: string;
       localImagePath?: string;
       purchasePrice: number;
@@ -70,6 +71,7 @@ export function useCreateProduct() {
       minStockThreshold?: number;
       unit?: string;
       initialQuantity?: number;
+      expiryDate?: string;
     }) => productRepository.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'], exact: false });
@@ -107,15 +109,14 @@ export function useUpdateProduct() {
 
 export function useDeleteProduct() {
   const queryClient = useQueryClient();
-  const removeFromCart = useCartStore((state) => state.removeItem);
 
   return useMutation({
     mutationFn: (id: string) => productRepository.delete(id),
-    onSuccess: (_, id) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'], exact: false });
       queryClient.invalidateQueries({ queryKey: ['stockBatches'], exact: false });
-      removeFromCart(id);
-      // No low-stock check needed on delete
+      // Note: Cart items with this product will remain until manually removed
+      // This is acceptable as the product check happens at checkout
     },
   });
 }

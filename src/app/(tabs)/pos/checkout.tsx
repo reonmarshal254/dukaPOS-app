@@ -25,7 +25,9 @@ import { generateUUID } from '../../../utils/uuid';
 import { getCurrentDateTime } from '../../../utils/datetime';
 import stockBatchRepository from '../../../services/repositories/stockBatchRepository';
 import productRepository from '../../../services/repositories/productRepository';
+import receiptRepository from '../../../services/repositories/receiptRepository';
 import { checkAndNotifyLowStock } from '../../../hooks/useProducts';
+import { ReceiptData } from '../../../types';
 
 const { width } = Dimensions.get('window');
 
@@ -131,12 +133,9 @@ export default function CheckoutScreen() {
         Alert.alert('Invalid Amount', 'Please enter a valid amount');
         return;
       }
-      if (!mobileMoneyReference.trim()) {
-        Alert.alert('Missing Reference', 'Please enter mobile money reference number');
-        return;
-      }
+      // M-Pesa reference is now optional
       amount = Math.min(payAmount, remaining);
-      reference = mobileMoneyReference.trim();
+      reference = mobileMoneyReference.trim() || undefined;
     } else if (currentPaymentMethod === PaymentMethod.CREDIT) {
       Alert.alert('Coming Soon', 'Credit sales will be available in the next update');
       return;
@@ -197,8 +196,9 @@ export default function CheckoutScreen() {
       const receiptNumber = await generateReceiptNumber();
 
       // Execute atomic transaction
+      let saleId: string = '';
       await executeTransaction(async (db) => {
-        const saleId = generateUUID();
+        saleId = generateUUID();
         const now = getCurrentDateTime();
 
         // Calculate change (only for single cash payment scenario)
@@ -338,8 +338,18 @@ export default function CheckoutScreen() {
       // Check for low stock after sale deducts inventory
       checkAndNotifyLowStock();
       
+      // Calculate cash tendered for cash payments
+      let cashTenderedAmount: number | undefined;
+      if (
+        payments.length === 1 &&
+        payments[0].method === PaymentMethod.CASH &&
+        cashTendered
+      ) {
+        cashTenderedAmount = toMinorUnits(parseFloat(cashTendered));
+      }
+
       // Prepare receipt data
-      const receiptData = {
+      const receiptData: ReceiptData = {
         receiptNumber,
         date: new Date().toLocaleDateString(),
         time: new Date().toLocaleTimeString(),
@@ -354,15 +364,31 @@ export default function CheckoutScreen() {
         total,
         amountPaid: totalPaid,
         change: Math.max(0, totalPaid - total),
+        balance: Math.max(0, totalPaid - total), // Same as change, for display
+        cashTendered: cashTenderedAmount,
         paymentMethod: payments.length === 1 ? payments[0].method : 'Multiple',
+        paymentMethods: payments.map(p => ({
+          method: p.method,
+          amount: p.amount,
+          reference: p.reference,
+        })),
         businessName: 'DukaPOS',
       };
+
+      // Save receipt to database
+      try {
+        await receiptRepository.saveReceipt(saleId, receiptNumber, receiptData);
+      } catch (receiptError) {
+        console.error('Failed to save receipt:', receiptError);
+        // Don't block navigation if receipt save fails
+      }
 
       // Navigate to receipt screen
       router.replace({
         pathname: '/(tabs)/pos/receipt',
         params: {
-          receiptData: JSON.stringify(receiptData),
+          saleId, // Pass saleId to load from database
+          receiptData: JSON.stringify(receiptData), // Also pass as fallback
         },
       });
     } catch (error: any) {
@@ -536,12 +562,12 @@ export default function CheckoutScreen() {
                 placeholder="Enter amount"
                 placeholderTextColor={COLORS.textSecondary}
               />
-              <Text style={styles.inputLabel}>M-Pesa Code</Text>
+              <Text style={styles.inputLabel}>M-Pesa Code (Optional)</Text>
               <TextInput
                 style={styles.input}
                 value={mobileMoneyReference}
                 onChangeText={setMobileMoneyReference}
-                placeholder="e.g., QA12BC3DEF"
+                placeholder="e.g., QA12BC3DEF (optional)"
                 placeholderTextColor={COLORS.textSecondary}
                 autoCapitalize="characters"
               />

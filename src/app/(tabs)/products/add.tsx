@@ -9,6 +9,7 @@ import {
   Alert,
   TouchableOpacity,
   Image,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -16,6 +17,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import * as ImagePicker from 'expo-image-picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import Input from '../../../components/common/Input';
 import Button from '../../../components/common/Button';
 import BarcodeScanner from '../../../components/common/BarcodeScanner';
@@ -32,12 +34,14 @@ const productSchema = z.object({
   name: z.string().min(1, 'Product name is required'),
   description: z.string().optional(),
   barcode: z.string().optional(),
+  sku: z.string().optional(),
   categoryId: z.string().optional(),
   purchasePrice: z.string().min(1, 'Purchase price is required'),
   sellingPrice: z.string().min(1, 'Selling price is required'),
   unit: z.string().min(1, 'Unit is required'),
   minStockThreshold: z.string().min(1, 'Min stock threshold is required'),
   initialStock: z.string().min(1, 'Initial stock is required'),
+  expiryDate: z.string().optional(),
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
@@ -47,6 +51,8 @@ export default function AddProductScreen() {
   const [imageUri, setImageUri] = useState<string | undefined>();
   const [scannerVisible, setScannerVisible] = useState(false);
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+  const [categoryDropdownVisible, setCategoryDropdownVisible] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const createProduct = useCreateProduct();
   const { data: categories = [] } = useCategories();
 
@@ -56,18 +62,21 @@ export default function AddProductScreen() {
     reset,
     formState: { errors },
     setValue,
+    getValues,
   } = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
     defaultValues: {
       name: '',
       description: '',
       barcode: '',
+      sku: '',
       categoryId: '',
       purchasePrice: '',
       sellingPrice: '',
       unit: 'pcs',
       minStockThreshold: '10',
       initialStock: '0',
+      expiryDate: '',
     },
   });
 
@@ -211,6 +220,7 @@ export default function AddProductScreen() {
       name: data.name,
       description: data.description || undefined,
       barcode: data.barcode || undefined,
+      sku: data.sku || undefined,
       categoryId: data.categoryId || undefined,
       purchasePrice: toMinorUnits(parseFloat(data.purchasePrice)),
       sellingPrice: toMinorUnits(parseFloat(data.sellingPrice)),
@@ -218,6 +228,7 @@ export default function AddProductScreen() {
       minStockThreshold: minThreshold,
       initialQuantity: initialStock,
       localImagePath: imageUri,
+      expiryDate: data.expiryDate || undefined,
     });
 
     // Clear form and image for the next product
@@ -227,6 +238,18 @@ export default function AddProductScreen() {
     Alert.alert('Success', 'Product created successfully', [
       { text: 'OK', onPress: () => router.back() },
     ]);
+  };
+
+  const selectedCategory = categories.find(c => c.id === getValues('categoryId'));
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-GB', { 
+      day: '2-digit', 
+      month: 'short', 
+      year: 'numeric' 
+    });
   };
 
   return (
@@ -310,6 +333,7 @@ export default function AddProductScreen() {
                     onChangeText={onChange}
                     onBlur={onBlur}
                     keyboardType="number-pad"
+                    helperText="Scan or enter product barcode"
                   />
                   <TouchableOpacity
                     style={styles.scanBarcodeButton}
@@ -320,6 +344,21 @@ export default function AddProductScreen() {
                     <Text style={styles.scanText}>Scan Barcode</Text>
                   </TouchableOpacity>
                 </View>
+              )}
+            />
+
+            <Controller
+              control={control}
+              name="sku"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="SKU (Optional)"
+                  placeholder="e.g., PROD-001"
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  helperText="Stock Keeping Unit for tracking products without barcode"
+                />
               )}
             />
 
@@ -340,29 +379,80 @@ export default function AddProductScreen() {
                         <Text style={styles.addCategoryText}>New</Text>
                       </TouchableOpacity>
                     </View>
-                    <View style={styles.categoryChips}>
-                      {categories.map((category) => (
-                        <TouchableOpacity
-                          key={category.id}
-                          style={[
-                            styles.categoryChip,
-                            value === category.id && styles.categoryChipActive,
-                          ]}
-                          onPress={() =>
-                            onChange(value === category.id ? '' : category.id)
-                          }
-                        >
-                          <Text
-                            style={[
-                              styles.categoryChipText,
-                              value === category.id && styles.categoryChipTextActive,
-                            ]}
-                          >
-                            {category.name}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
+                    <TouchableOpacity
+                      style={styles.dropdown}
+                      onPress={() => setCategoryDropdownVisible(true)}
+                    >
+                      <Text style={styles.dropdownValue}>
+                        {selectedCategory?.name || 'Select Category'}
+                      </Text>
+                      <Text style={styles.dropdownIcon}>▼</Text>
+                    </TouchableOpacity>
+
+                    {/* Category Dropdown Modal */}
+                    <Modal
+                      visible={categoryDropdownVisible}
+                      transparent
+                      animationType="fade"
+                      onRequestClose={() => setCategoryDropdownVisible(false)}
+                    >
+                      <TouchableOpacity
+                        style={styles.modalOverlay}
+                        activeOpacity={1}
+                        onPress={() => setCategoryDropdownVisible(false)}
+                      >
+                        <View style={styles.dropdownMenu}>
+                          <Text style={styles.dropdownTitle}>Select Category</Text>
+                          <ScrollView style={styles.dropdownList}>
+                            <TouchableOpacity
+                              style={[
+                                styles.dropdownItem,
+                                !value && styles.dropdownItemActive,
+                              ]}
+                              onPress={() => {
+                                onChange('');
+                                setCategoryDropdownVisible(false);
+                              }}
+                            >
+                              <Text
+                                style={[
+                                  styles.dropdownItemText,
+                                  !value && styles.dropdownItemTextActive,
+                                ]}
+                              >
+                                No Category
+                              </Text>
+                              {!value && <Text style={styles.checkmark}>✓</Text>}
+                            </TouchableOpacity>
+                            {categories.map((category) => (
+                              <TouchableOpacity
+                                key={category.id}
+                                style={[
+                                  styles.dropdownItem,
+                                  value === category.id && styles.dropdownItemActive,
+                                ]}
+                                onPress={() => {
+                                  onChange(category.id);
+                                  setCategoryDropdownVisible(false);
+                                }}
+                              >
+                                <Text
+                                  style={[
+                                    styles.dropdownItemText,
+                                    value === category.id && styles.dropdownItemTextActive,
+                                  ]}
+                                >
+                                  {category.name}
+                                </Text>
+                                {value === category.id && (
+                                  <Text style={styles.checkmark}>✓</Text>
+                                )}
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        </View>
+                      </TouchableOpacity>
+                    </Modal>
                   </View>
                 )}
               />
@@ -466,6 +556,47 @@ export default function AddProductScreen() {
                   required
                   helperText="Starting quantity in stock"
                 />
+              )}
+            />
+
+            <Controller
+              control={control}
+              name="expiryDate"
+              render={({ field: { onChange, value } }) => (
+                <View style={styles.dateSection}>
+                  <Text style={styles.dateLabel}>Expiry Date (Optional)</Text>
+                  <TouchableOpacity
+                    style={styles.dateButton}
+                    onPress={() => setShowDatePicker(true)}
+                  >
+                    <Text style={[styles.dateButtonText, value && styles.dateButtonTextActive]}>
+                      {value ? formatDate(value) : 'Select Expiry Date'}
+                    </Text>
+                    <Text style={styles.dateIcon}>📅</Text>
+                  </TouchableOpacity>
+                  {showDatePicker && (
+                    <DateTimePicker
+                      value={value ? new Date(value) : new Date()}
+                      mode="date"
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      minimumDate={new Date()}
+                      onChange={(_event: any, selectedDate?: Date) => {
+                        setShowDatePicker(Platform.OS === 'ios');
+                        if (selectedDate) {
+                          onChange(selectedDate.toISOString());
+                        }
+                      }}
+                    />
+                  )}
+                  {value && (
+                    <TouchableOpacity
+                      style={styles.clearDateButton}
+                      onPress={() => onChange('')}
+                    >
+                      <Text style={styles.clearDateText}>Clear Date</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               )}
             />
           </View>
@@ -589,11 +720,92 @@ const styles = StyleSheet.create({
   categorySection: {
     marginBottom: SPACING.md,
   },
+  categoryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
   categoryLabel: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.text,
-    marginBottom: SPACING.xs,
+  },
+  dropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.inputBackground,
+    borderWidth: 1,
+    borderColor: COLORS.inputBorder,
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+  },
+  dropdownValue: {
+    flex: 1,
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.text,
+  },
+  dropdownIcon: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginLeft: SPACING.sm,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.xl,
+  },
+  dropdownMenu: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: BORDER_RADIUS.xl,
+    width: '100%',
+    maxHeight: 400,
+    overflow: 'hidden',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  dropdownTitle: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.text,
+    padding: SPACING.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  dropdownList: {
+    maxHeight: 320,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+  },
+  dropdownItemActive: {
+    backgroundColor: '#EFF6FF',
+  },
+  dropdownItemText: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.text,
+  },
+  dropdownItemTextActive: {
+    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+  checkmark: {
+    fontSize: 18,
+    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   categoryChips: {
     flexDirection: 'row',
@@ -644,12 +856,6 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.primary,
   },
-  categoryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.sm,
-  },
   addCategoryButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -684,5 +890,48 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.base,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.primary,
+  },
+  dateSection: {
+    marginBottom: SPACING.md,
+  },
+  dateLabel: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.text,
+    marginBottom: SPACING.xs,
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.inputBackground,
+    borderWidth: 1,
+    borderColor: COLORS.inputBorder,
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+  },
+  dateButtonText: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.textSecondary,
+    flex: 1,
+  },
+  dateButtonTextActive: {
+    color: COLORS.text,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+  dateIcon: {
+    fontSize: 20,
+    marginLeft: SPACING.sm,
+  },
+  clearDateButton: {
+    marginTop: SPACING.xs,
+    alignSelf: 'flex-start',
+    paddingVertical: SPACING.xs,
+  },
+  clearDateText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.error,
+    textDecorationLine: 'underline',
   },
 });
