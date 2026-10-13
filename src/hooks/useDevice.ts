@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Device from 'expo-device';
 import * as Application from 'expo-application';
+import * as Network from 'expo-network';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { getDeviceID, storeDeviceID, getBusinessID } from '../services/secureStorage';
@@ -8,6 +9,7 @@ import { executeQuerySingle, executeWrite } from '../database';
 import { TABLES } from '../database/schema';
 import { generateUUID } from '../utils/uuid';
 import { getCurrentDateTime } from '../utils/datetime';
+import { ensureBusinessID } from '../services/businessSync';
 
 export interface DeviceInfo {
   deviceId: string;
@@ -21,18 +23,45 @@ export interface DeviceInfo {
   registeredAt: string;
 }
 
+// ─── Sync status tracking ─────────────────────────────────────────────────────
+interface SyncStatus {
+  lastSyncAttempt: number | null;
+  lastSuccessfulSync: number | null;
+  retryCount: number;
+}
+
+const syncStatus: SyncStatus = {
+  lastSyncAttempt: null,
+  lastSuccessfulSync: null,
+  retryCount: 0,
+};
+
+// Minimum time between sync attempts (5 minutes)
+const MIN_SYNC_INTERVAL = 5 * 60 * 1000;
+
 // ─── Admin API URL ─────────────────────────────────────────────────────────────
 // Read from app.config.js extra — the only reliable way to pass env vars to
-// React Native at runtime. Falls back to the Android emulator host.
+// React Native at runtime. Falls back to production URL.
 function getAdminUrl(): string {
   try {
     return (
       (Constants.expoConfig?.extra as any)?.adminApiUrl ??
-      'http://10.0.2.2:5000'
+      'https://dukapos-gjfx.onrender.com'
     );
   } catch (error) {
-    // Fallback if Constants fails in production
+    // Fallback if Constants fails
     return 'https://dukapos-gjfx.onrender.com';
+  }
+}
+
+// ─── Network detection ────────────────────────────────────────────────────────
+async function isOnline(): Promise<boolean> {
+  try {
+    const state = await Network.getNetworkStateAsync();
+    return state.isConnected === true && state.isInternetReachable === true;
+  } catch (error) {
+    console.warn('[useDevice] Network check error:', error);
+    return false;
   }
 }
 
@@ -52,64 +81,91 @@ async function resolveDeviceId(): Promise<string> {
 }
 
 // ─── Report to admin backend ───────────────────────────────────────────────────
-// PRICING_REMOVED: Device registration to admin backend disabled
-// App is now free and doesn't need to phone home
-// Fire-and-forget — never blocks the app, always logs the result so you can
-// confirm it's reaching the server.
+/**
+ * Syncs business registration and device details to admin backend.
+ * Only runs when online and respects minimum sync intervals.
+ * Fire-and-forget — never blocks the app, always logs the result.
+ */
 async function reportToAdmin(info: DeviceInfo, businessId: string): Promise<void> {
-  // PRICING_REMOVED: Admin registration disabled
-  console.log('[useDevice] Admin registration disabled (app is now free)');
-  return;
-  
-  /* Original code preserved for future restoration:
   try {
+    // Check if we're online
+    const online = await isOnline();
+    if (!online) {
+      console.log('[useDevice] Offline — skipping admin sync');
+      return;
+    }
+
+    // Check if we've synced recently (avoid redundant calls)
+    const now = Date.now();
+    if (
+      syncStatus.lastSyncAttempt &&
+      now - syncStatus.lastSyncAttempt < MIN_SYNC_INTERVAL
+    ) {
+      console.log('[useDevice] Sync attempted recently — skipping');
+      return;
+    }
+
+    syncStatus.lastSyncAttempt = now;
+
+    // Fetch business details
     const biz = await executeQuerySingle<{
-      name: string; owner_name: string; phone: string; location: string;
-    }>(`SELECT name, owner_name, phone, location FROM businesses WHERE id = ?`, [businessId]);
+      name: string;
+      owner_name: string;
+      phone: string;
+      location: string;
+    }>(`SELECT name, owner_name, phone, location FROM ${TABLES.BUSINESSES} WHERE id = ?`, [businessId]);
+
+    if (!biz) {
+      console.warn('[useDevice] Business record not found for ID:', businessId);
+      return;
+    }
 
     const adminUrl = getAdminUrl();
     const payload = {
-      deviceId:     info.deviceId,
-      businessName: biz?.name         ?? null,
-      ownerName:    biz?.owner_name   ?? null,
-      phone:        biz?.phone        ?? null,
-      location:     biz?.location     ?? null,
-      deviceName:   info.deviceName,
-      deviceModel:  info.deviceModel,
-      osName:       info.osName,
-      osVersion:    info.osVersion,
-      appVersion:   info.appVersion,
-      buildNumber:  info.appBuildNumber,
-      platform:     Platform.OS,
-      isPhysical:   info.isPhysicalDevice,
+      deviceId: info.deviceId,
+      businessName: biz.name,
+      ownerName: biz.owner_name,
+      phone: biz.phone,
+      location: biz.location,
+      deviceName: info.deviceName,
+      deviceModel: info.deviceModel,
+      osName: info.osName,
+      osVersion: info.osVersion,
+      appVersion: info.appVersion,
+      buildNumber: info.appBuildNumber,
+      platform: Platform.OS,
+      isPhysical: info.isPhysicalDevice,
     };
 
-    console.log(`[useDevice] POST ${adminUrl}/api/register`, JSON.stringify(payload));
+    console.log(`[useDevice] POST ${adminUrl}/api/register`);
 
     const res = await fetch(`${adminUrl}/api/register`, {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(payload),
+      body: JSON.stringify(payload),
+      // 10 second timeout
+      signal: AbortSignal.timeout(10000),
     });
 
     if (res.ok) {
-      console.log('[useDevice] Admin registration successful');
+      console.log('[useDevice] ✅ Admin sync successful');
+      syncStatus.lastSuccessfulSync = now;
+      syncStatus.retryCount = 0;
     } else {
-      console.warn('[useDevice] Admin registration failed:', res.status, await res.text());
+      const text = await res.text();
+      console.warn('[useDevice] ⚠️ Admin sync failed:', res.status, text);
+      syncStatus.retryCount++;
     }
   } catch (err: any) {
-    console.warn('[useDevice] Admin registration error:', err.message);
+    console.warn('[useDevice] ⚠️ Admin sync error:', err.message);
+    syncStatus.retryCount++;
   }
-  */
 }
 
 // ─── Local DB upsert ──────────────────────────────────────────────────────────
 async function registerDeviceInDB(info: DeviceInfo): Promise<void> {
-  const businessId = await getBusinessID();
-  if (!businessId) {
-    console.log('[useDevice] No businessId yet — skipping DB + admin registration');
-    return;
-  }
+  // Ensure business ID exists (auto-generate if missing)
+  const businessId = await ensureBusinessID();
 
   const now = getCurrentDateTime();
   const existing = await executeQuerySingle<{ id: string }>(

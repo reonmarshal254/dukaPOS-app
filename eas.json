@@ -17,7 +17,8 @@
         "PLAN_WEEKLY_PRICE": "60000",
         "PLAN_MONTHLY_PRICE": "200000",
         "PLAN_LIFETIME_PRICE": "1000000",
-        "SENTRY_DSN": "https://e8636f00010902861d65dfb574cdfa78@o4512247884480512.ingest.us.sentry.io/4512248017911808"
+        "SENTRY_DSN": "https://e8636f00010902861d65dfb574cdfa78@o4512247884480512.ingest.us.sentry.io/4512248017911808",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "preview": {
@@ -32,7 +33,8 @@
         "PLAN_WEEKLY_PRICE": "60000",
         "PLAN_MONTHLY_PRICE": "200000",
         "PLAN_LIFETIME_PRICE": "1000000",
-        "SENTRY_DSN": "https://e8636f00010902861d65dfb574cdfa78@o4512247884480512.ingest.us.sentry.io/4512248017911808"
+        "SENTRY_DSN": "https://e8636f00010902861d65dfb574cdfa78@o4512247884480512.ingest.us.sentry.io/4512248017911808",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "production": {
@@ -47,7 +49,8 @@
         "PLAN_WEEKLY_PRICE": "60000",
         "PLAN_MONTHLY_PRICE": "200000",
         "PLAN_LIFETIME_PRICE": "1000000",
-        "SENTRY_DSN": "https://e8636f00010902861d65dfb574cdfa78@o4512247884480512.ingest.us.sentry.io/4512248017911808"
+        "SENTRY_DSN": "https://e8636f00010902861d65dfb574cdfa78@o4512247884480512.ingest.us.sentry.io/4512248017911808",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     }
   },

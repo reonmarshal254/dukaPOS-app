@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initializeDatabase } from '../database';
 import { initNotifications, addNotificationResponseListener } from '../services/notificationService';
+import { useNetworkListener } from '../hooks/useNetworkListener';
 import { COLORS } from '../constants/colors';
 import { TYPOGRAPHY } from '../constants/typography';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -104,6 +105,7 @@ export default function RootLayout() {
     <ErrorBoundary>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
+          <NetworkSyncProvider />
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="(auth)" />
@@ -113,6 +115,12 @@ export default function RootLayout() {
       </SafeAreaProvider>
     </ErrorBoundary>
   );
+}
+
+// Network sync component - monitors connectivity and triggers sync
+function NetworkSyncProvider() {
+  useNetworkListener();
+  return null;
 }
 
 const styles = StyleSheet.create({

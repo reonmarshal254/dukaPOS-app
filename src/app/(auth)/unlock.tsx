@@ -28,6 +28,8 @@ import {
   isBiometricEnabled,
   authenticateWithBiometric,
 } from '../../services/biometricAuth';
+import { checkAccountStatus } from '../../services/accountStatusService';
+import { useDevice } from '../../hooks/useDevice';
 import { COLORS } from '../../constants/colors';
 import { SPACING, BORDER_RADIUS } from '../../constants/spacing';
 import { TYPOGRAPHY } from '../../constants/typography';
@@ -187,6 +189,7 @@ const dd = StyleSheet.create({
 // ─── Screen ────────────────────────────────────────────────────────────────────
 export default function UnlockScreen() {
   const router = useRouter();
+  const { data: deviceInfo } = useDevice();
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -200,13 +203,43 @@ export default function UnlockScreen() {
   const [newPin, setNewPin] = useState('');
   const [confirmNewPin, setConfirmNewPin] = useState('');
   const [showBiometric, setShowBiometric] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(false);
 
   useEffect(() => {
     loadFailedAttempts();
+    checkSuspensionStatus();
     attemptBiometricAuth();
     isBiometricEnabled().then(setShowBiometric);
     return () => { if (lockoutIntervalId) clearInterval(lockoutIntervalId); };
   }, []);
+
+  const checkSuspensionStatus = async () => {
+    if (!deviceInfo?.deviceId) return;
+    
+    setCheckingStatus(true);
+    try {
+      const status = await checkAccountStatus(deviceInfo.deviceId);
+      
+      if (status && status.suspended) {
+        // Account is suspended — redirect to suspension screen
+        router.replace({
+          pathname: '/(auth)/suspended',
+          params: {
+            deviceId: status.deviceId,
+            businessName: status.businessName,
+            deviceName: status.deviceName,
+            deviceModel: status.deviceModel,
+            osName: status.osName,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Error checking suspension status:', error);
+      // Continue to unlock if check fails (offline or error)
+    } finally {
+      setCheckingStatus(false);
+    }
+  };
 
   const attemptBiometricAuth = async () => {
     try {
@@ -266,6 +299,24 @@ export default function UnlockScreen() {
     if (isLocked) return;
     setLoading(true);
     try {
+      // Check suspension status before allowing unlock
+      if (deviceInfo?.deviceId) {
+        const status = await checkAccountStatus(deviceInfo.deviceId);
+        if (status && status.suspended) {
+          router.replace({
+            pathname: '/(auth)/suspended',
+            params: {
+              deviceId: status.deviceId,
+              businessName: status.businessName,
+              deviceName: status.deviceName,
+              deviceModel: status.deviceModel,
+              osName: status.osName,
+            },
+          });
+          return;
+        }
+      }
+
       if (await verifyPIN(entered)) {
         router.replace('/(tabs)');
       } else {
@@ -450,7 +501,9 @@ export default function UnlockScreen() {
           <PINDots filled={pin.length} hasError={!!error} />
 
           {/* Status */}
-          {isLocked && lockoutTimer > 0 ? (
+          {checkingStatus ? (
+            <Text style={s.statusText}>Checking account status...</Text>
+          ) : isLocked && lockoutTimer > 0 ? (
             <View style={s.lockoutBox}>
               <Text style={s.lockoutLabel}>Account locked</Text>
               <Text style={s.lockoutTimer}>
