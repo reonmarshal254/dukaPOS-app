@@ -89,6 +89,16 @@ export default function NotificationsScreen() {
     }, [])
   );
 
+  // Auto-prompt for permission on first screen visit if undetermined
+  useEffect(() => {
+    if (permStatus === 'undetermined') {
+      // Small delay to let screen render first
+      setTimeout(() => {
+        handleRequestPermission();
+      }, 500);
+    }
+  }, [permStatus]);
+
   const loadState = async () => {
     const status = await getPermissionStatus();
     setPermStatus(status);
@@ -102,13 +112,21 @@ export default function NotificationsScreen() {
     const granted = await requestNotificationPermission();
     if (granted) {
       await loadState();
+      Alert.alert(
+        '✅ Notifications Enabled',
+        'You\'ll now receive stock alerts and reminders from DukaPOS.',
+        [{ text: 'OK' }]
+      );
     } else {
       Alert.alert(
         'Permission Denied',
-        'Notifications are blocked. Please enable them in your device Settings.',
+        'Notifications are currently blocked. To enable them:\n\n1. Open your device Settings\n2. Find DukaPOS\n3. Enable Notifications',
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          { 
+            text: 'Open Settings', 
+            onPress: () => Linking.openSettings() 
+          },
         ]
       );
     }
@@ -170,16 +188,36 @@ export default function NotificationsScreen() {
           </View>
         ) : !permGranted ? (
           <View style={[s.permCard, s.permCardDenied]}>
-            <Text style={s.permIcon}>🔔</Text>
-            <View style={s.permContent}>
-              <Text style={s.permTitle}>Notifications are off</Text>
-              <Text style={s.permDesc}>
-                Allow DukaPOS to send you stock alerts and daily reminders.
-              </Text>
+            <View style={s.permIconCircle}>
+              <Text style={s.permIconLarge}>🔔</Text>
             </View>
-            <TouchableOpacity style={s.permBtn} onPress={handleRequestPermission} activeOpacity={0.8}>
-              <Text style={s.permBtnText}>Enable</Text>
+            <View style={s.permContentLarge}>
+              <Text style={s.permTitleLarge}>Allow Notifications</Text>
+              <Text style={s.permDescLarge}>
+                Stay informed about:
+              </Text>
+              <View style={s.featureList}>
+                <Text style={s.featureItem}>• Low stock alerts</Text>
+                <Text style={s.featureItem}>• Daily reminders</Text>
+                <Text style={s.featureItem}>• Important updates</Text>
+              </View>
+            </View>
+            <TouchableOpacity 
+              style={s.permBtnLarge} 
+              onPress={handleRequestPermission} 
+              activeOpacity={0.8}
+            >
+              <Text style={s.permBtnTextLarge}>Enable Notifications</Text>
             </TouchableOpacity>
+            {permStatus === 'denied' && (
+              <TouchableOpacity 
+                style={s.settingsBtn} 
+                onPress={() => Linking.openSettings()}
+                activeOpacity={0.8}
+              >
+                <Text style={s.settingsBtnText}>Open Settings</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           <View style={[s.permCard, s.permCardGranted]}>
@@ -276,20 +314,101 @@ const s = StyleSheet.create({
   scroll: { padding: SPACING.lg },
 
   permCard: {
-    flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#FFFFFF', borderRadius: BORDER_RADIUS.xl,
-    padding: SPACING.md, marginBottom: SPACING.md,
-    gap: SPACING.sm, ...SHADOWS.sm,
+    padding: SPACING.lg, marginBottom: SPACING.md,
+    ...SHADOWS.sm,
   },
-  permCardDenied: { borderWidth: 1, borderColor: '#FED7AA', backgroundColor: '#FFF7ED' },
-  permCardGranted: { borderWidth: 1, borderColor: '#BBF7D0', backgroundColor: '#F0FDF4' },
+  permCardDenied: { 
+    borderWidth: 2, 
+    borderColor: COLORS.primary,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+  },
+  permCardGranted: { 
+    flexDirection: 'row', 
+    alignItems: 'center',
+    gap: SPACING.sm,
+    borderWidth: 1, 
+    borderColor: '#BBF7D0', 
+    backgroundColor: '#F0FDF4',
+    padding: SPACING.md,
+  },
+  permIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: COLORS.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  permIconLarge: { 
+    fontSize: 32,
+  },
   permIcon: { fontSize: 24 },
+  permContentLarge: {
+    alignItems: 'center',
+    marginBottom: SPACING.lg,
+  },
   permContent: { flex: 1 },
+  permTitleLarge: {
+    fontSize: TYPOGRAPHY.fontSize.xl,
+    fontWeight: TYPOGRAPHY.fontWeight.bold, 
+    color: COLORS.text, 
+    marginBottom: SPACING.sm,
+    textAlign: 'center',
+  },
+  permDescLarge: { 
+    fontSize: TYPOGRAPHY.fontSize.base, 
+    color: COLORS.textSecondary, 
+    marginBottom: SPACING.sm,
+    textAlign: 'center',
+  },
+  featureList: {
+    alignSelf: 'stretch',
+    paddingHorizontal: SPACING.xl,
+  },
+  featureItem: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text,
+    lineHeight: 24,
+    textAlign: 'left',
+  },
   permTitle: {
     fontSize: TYPOGRAPHY.fontSize.base,
     fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.text, marginBottom: 2,
   },
   permDesc: { fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.textSecondary, lineHeight: 16 },
+  permBtnLarge: {
+    backgroundColor: COLORS.primary, 
+    borderRadius: BORDER_RADIUS.xl,
+    paddingHorizontal: SPACING.xl, 
+    paddingVertical: SPACING.md,
+    width: '100%',
+    alignItems: 'center',
+    ...SHADOWS.sm,
+  },
+  permBtnTextLarge: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontWeight: TYPOGRAPHY.fontWeight.bold, 
+    color: '#FFFFFF',
+  },
+  settingsBtn: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.xl,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.sm,
+    width: '100%',
+    alignItems: 'center',
+    marginTop: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  settingsBtnText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text,
+  },
   permBtn: {
     backgroundColor: COLORS.primary, borderRadius: BORDER_RADIUS.lg,
     paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,

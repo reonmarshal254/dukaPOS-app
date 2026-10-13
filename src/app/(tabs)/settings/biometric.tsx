@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Switch, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Switch, Alert, Platform, Linking } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import ScreenHeader from '../../../components/common/ScreenHeader';
@@ -154,14 +154,78 @@ export default function BiometricSettingsScreen() {
           ]}
         >
           <View style={styles.unavailableContainer}>
-            <Text style={styles.unavailableIcon}>⚙️</Text>
-            <Text style={styles.unavailableTitle}>Setup Required</Text>
+            <Text style={styles.unavailableIcon}>🔐</Text>
+            <Text style={styles.unavailableTitle}>Setup Biometrics</Text>
             <Text style={styles.unavailableText}>
-              Please set up biometric authentication in your device settings first.
+              {getBiometricTypeName(capability.biometricType)} is available on your device,
+              but you haven't set it up yet.
             </Text>
-            <Text style={styles.unavailableHint}>
-              Go to Settings → Security → Biometrics
+            <Text style={styles.setupSteps}>
+              To use {getBiometricTypeName(capability.biometricType).toLowerCase()} in DukaPOS:
             </Text>
+            <View style={styles.stepsList}>
+              <View style={styles.stepItem}>
+                <View style={styles.stepNumber}>
+                  <Text style={styles.stepNumberText}>1</Text>
+                </View>
+                <Text style={styles.stepText}>
+                  Open your device Settings
+                </Text>
+              </View>
+              <View style={styles.stepItem}>
+                <View style={styles.stepNumber}>
+                  <Text style={styles.stepNumberText}>2</Text>
+                </View>
+                <Text style={styles.stepText}>
+                  Navigate to Security → Biometrics
+                </Text>
+              </View>
+              <View style={styles.stepItem}>
+                <View style={styles.stepNumber}>
+                  <Text style={styles.stepNumberText}>3</Text>
+                </View>
+                <Text style={styles.stepText}>
+                  Enroll your {getBiometricTypeName(capability.biometricType).toLowerCase()}
+                </Text>
+              </View>
+              <View style={styles.stepItem}>
+                <View style={styles.stepNumber}>
+                  <Text style={styles.stepNumberText}>4</Text>
+                </View>
+                <Text style={styles.stepText}>
+                  Return here to enable it for DukaPOS
+                </Text>
+              </View>
+            </View>
+
+            <Button
+              title="Open Device Settings"
+              onPress={async () => {
+                try {
+                  // Android: open security settings
+                  if (Platform.OS === 'android') {
+                    await Linking.sendIntent('android.settings.SECURITY_SETTINGS');
+                  } else {
+                    // iOS: open general settings
+                    await Linking.openSettings();
+                  }
+                } catch (error) {
+                  Alert.alert(
+                    'Cannot Open Settings',
+                    'Please open your device Settings app manually and navigate to Security → Biometrics.',
+                    [{ text: 'OK' }]
+                  );
+                }
+              }}
+              style={styles.settingsButton}
+            />
+
+            <Button
+              title="Refresh Status"
+              onPress={loadBiometricStatus}
+              variant="outline"
+              style={styles.refreshButton}
+            />
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -280,6 +344,53 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     textAlign: 'center',
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+  setupSteps: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text,
+    textAlign: 'center',
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.md,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+  stepsList: {
+    width: '100%',
+    marginBottom: SPACING.xl,
+  },
+  stepItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: SPACING.md,
+    paddingHorizontal: SPACING.md,
+  },
+  stepNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.sm,
+  },
+  stepNumberText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#FFFFFF',
+  },
+  stepText: {
+    flex: 1,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text,
+    lineHeight: TYPOGRAPHY.fontSize.sm * 1.5,
+    paddingTop: 3,
+  },
+  settingsButton: {
+    marginTop: SPACING.md,
+    width: '100%',
+  },
+  refreshButton: {
+    marginTop: SPACING.sm,
+    width: '100%',
   },
   card: {
     backgroundColor: COLORS.surface,
