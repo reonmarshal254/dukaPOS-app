@@ -15,6 +15,7 @@ interface CreateVariantData {
   purchasePrice?: number;
   barcode?: string;
   sku?: string;
+  currentQuantity?: number;
   isDefault?: boolean;
 }
 
@@ -25,6 +26,7 @@ interface UpdateVariantData {
   purchasePrice?: number;
   barcode?: string;
   sku?: string;
+  currentQuantity?: number;
   isDefault?: boolean;
   isActive?: boolean;
 }

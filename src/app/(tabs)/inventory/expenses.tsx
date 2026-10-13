@@ -78,7 +78,18 @@ function AddExpenseModal({
         date,
         notes: notes.trim() || undefined,
       });
-      handleClose();
+      
+      // Clear form for next entry
+      reset();
+      
+      Alert.alert(
+        'Success',
+        'Expense recorded. Add another?',
+        [
+          { text: 'Done', onPress: handleClose },
+          { text: 'Add Another', style: 'cancel' },
+        ]
+      );
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to save expense');
     }

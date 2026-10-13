@@ -14,9 +14,6 @@ import { initializeSentry } from '../services/sentryService';
 // Initialize Sentry FIRST - before any other code runs
 initializeSentry();
 
-// Initialize global error handler
-initializeErrorHandler();
-
 // Create a client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -32,6 +29,9 @@ export default function RootLayout() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Initialize error handler after React Native is fully loaded
+    initializeErrorHandler();
+
     const init = async () => {
       try {
         if (__DEV__) {

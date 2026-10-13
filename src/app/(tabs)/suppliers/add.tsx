@@ -43,6 +43,7 @@ export default function AddSupplierScreen() {
     handleSubmit,
     formState: { errors },
     setValue,
+    reset,
   } = useForm<SupplierFormData>({
     resolver: zodResolver(supplierSchema),
     defaultValues: {
@@ -66,9 +67,18 @@ export default function AddSupplierScreen() {
         notes: data.notes || undefined,
       });
 
-      Alert.alert('Success', 'Supplier added successfully', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      // Clear form for next entry
+      reset();
+      setRating(0);
+      
+      Alert.alert(
+        'Success',
+        'Supplier added successfully. Add another?',
+        [
+          { text: 'Done', onPress: () => router.back() },
+          { text: 'Add Another', style: 'cancel' },
+        ]
+      );
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to add supplier');
     }

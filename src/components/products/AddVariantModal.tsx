@@ -16,6 +16,8 @@ import { toMinorUnits } from '../../utils/currency';
 import { COLORS } from '../../constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/spacing';
 import { TYPOGRAPHY } from '../../constants/typography';
+import BarcodeScanner from '../common/BarcodeScanner';
+import { ScanIcon } from '../common/Icons';
 
 interface AddVariantModalProps {
   visible: boolean;
@@ -36,7 +38,10 @@ export default function AddVariantModal({
   const [purchasePrice, setPurchasePrice] = useState('');
   const [barcode, setBarcode] = useState('');
   const [sku, setSku] = useState('');
+  const [currentQuantity, setCurrentQuantity] = useState('0');
   const [isDefault, setIsDefault] = useState(false);
+  const [scannerVisible, setScannerVisible] = useState(false);
+  const [scanTarget, setScanTarget] = useState<'barcode' | 'sku'>('barcode');
 
   const createVariant = useCreateVariant();
 
@@ -47,7 +52,25 @@ export default function AddVariantModal({
     setPurchasePrice('');
     setBarcode('');
     setSku('');
+    setCurrentQuantity('0');
     setIsDefault(false);
+    setScannerVisible(false);
+  };
+
+  const handleBarcodeScanned = (scannedCode: string) => {
+    if (scanTarget === 'barcode') {
+      setBarcode(scannedCode);
+      Alert.alert('Barcode Scanned', `Barcode: ${scannedCode}`);
+    } else {
+      setSku(scannedCode);
+      Alert.alert('SKU Scanned', `SKU: ${scannedCode}`);
+    }
+    setScannerVisible(false);
+  };
+
+  const openScanner = (target: 'barcode' | 'sku') => {
+    setScanTarget(target);
+    setScannerVisible(true);
   };
 
   const handleSubmit = async () => {
@@ -73,6 +96,12 @@ export default function AddVariantModal({
       return;
     }
 
+    const quantity = parseInt(currentQuantity);
+    if (isNaN(quantity) || quantity < 0) {
+      Alert.alert('Invalid', 'Please enter valid stock quantity');
+      return;
+    }
+
     try {
       await createVariant.mutateAsync({
         productId,
@@ -82,6 +111,7 @@ export default function AddVariantModal({
         purchasePrice: purchase ? toMinorUnits(purchase) : undefined,
         barcode: barcode.trim() || undefined,
         sku: sku.trim() || undefined,
+        currentQuantity: quantity,
         isDefault,
       });
 
@@ -177,22 +207,50 @@ export default function AddVariantModal({
             </View>
 
             <Text style={styles.label}>Barcode (Optional)</Text>
-            <TextInput
-              style={styles.input}
-              value={barcode}
-              onChangeText={setBarcode}
-              placeholder="Unique barcode for this variant"
-              placeholderTextColor={COLORS.textSecondary}
-              keyboardType="number-pad"
-            />
+            <View style={styles.barcodeRow}>
+              <TextInput
+                style={[styles.input, styles.barcodeInput]}
+                value={barcode}
+                onChangeText={setBarcode}
+                placeholder="Unique barcode for this variant"
+                placeholderTextColor={COLORS.textSecondary}
+                keyboardType="number-pad"
+              />
+              <TouchableOpacity
+                style={styles.scanButton}
+                onPress={() => openScanner('barcode')}
+              >
+                <ScanIcon size={20} color="#FFFFFF" />
+                <Text style={styles.scanButtonText}>Scan</Text>
+              </TouchableOpacity>
+            </View>
 
             <Text style={styles.label}>SKU (Optional)</Text>
+            <View style={styles.barcodeRow}>
+              <TextInput
+                style={[styles.input, styles.barcodeInput]}
+                value={sku}
+                onChangeText={setSku}
+                placeholder="Unique SKU for this variant"
+                placeholderTextColor={COLORS.textSecondary}
+              />
+              <TouchableOpacity
+                style={styles.scanButton}
+                onPress={() => openScanner('sku')}
+              >
+                <ScanIcon size={20} color="#FFFFFF" />
+                <Text style={styles.scanButtonText}>Scan</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.label}>Initial Stock Quantity</Text>
             <TextInput
               style={styles.input}
-              value={sku}
-              onChangeText={setSku}
-              placeholder="Unique SKU for this variant"
+              value={currentQuantity}
+              onChangeText={setCurrentQuantity}
+              placeholder="0"
               placeholderTextColor={COLORS.textSecondary}
+              keyboardType="number-pad"
             />
 
             <TouchableOpacity
@@ -222,6 +280,13 @@ export default function AddVariantModal({
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Barcode Scanner */}
+      <BarcodeScanner
+        visible={scannerVisible}
+        onClose={() => setScannerVisible(false)}
+        onBarcodeScanned={handleBarcodeScanned}
+      />
     </Modal>
   );
 }
@@ -310,6 +375,30 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
+  },
+  barcodeRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    alignItems: 'center',
+  },
+  barcodeInput: {
+    flex: 1,
+  },
+  scanButton: {
+    backgroundColor: COLORS.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm + 2,
+    borderRadius: BORDER_RADIUS.lg,
+    gap: SPACING.xs,
+    minWidth: 80,
+  },
+  scanButtonText: {
+    color: '#FFFFFF',
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   checkboxRow: {
     flexDirection: 'row',

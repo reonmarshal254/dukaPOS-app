@@ -12,12 +12,16 @@ import Constants from 'expo-constants';
 // Get Sentry DSN from environment or Constants
 function getSentryDSN(): string | undefined {
   try {
-    // Try to get from Constants (set in app.config.js)
+    // Try to get from Constants (set in app.config.js at build time)
     const dsn = (Constants.expoConfig?.extra as any)?.sentryDsn;
     if (dsn) return dsn;
     
-    // You'll need to add your DSN here or in environment variables
-    // Get this from: https://mcokoth-technologies.sentry.io/settings/projects/dukapos-mobile/keys/
+    // Fallback for local development - your actual DSN
+    // This is safe to commit (it's a public key, not a secret)
+    if (__DEV__) {
+      return 'https://e8636f00010902861d65dfb574cdfa78@o4512247884480512.ingest.us.sentry.io/4512248017911808';
+    }
+    
     return undefined;
   } catch {
     return undefined;

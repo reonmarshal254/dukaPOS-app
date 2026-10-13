@@ -10,6 +10,7 @@ interface CreateVariantParams {
   purchasePrice?: number;
   barcode?: string;
   sku?: string;
+  currentQuantity?: number;
   isDefault?: boolean;
 }
 
@@ -20,6 +21,7 @@ interface UpdateVariantParams {
   purchasePrice?: number;
   barcode?: string;
   sku?: string;
+  currentQuantity?: number;
   isDefault?: boolean;
   isActive?: boolean;
 }
@@ -37,6 +39,7 @@ function mapRowToVariant(row: any): ProductVariant {
     purchasePrice: row.purchasePrice || undefined,
     barcode: row.barcode || undefined,
     sku: row.sku || undefined,
+    currentQuantity: row.currentQuantity || 0,
     isDefault: Boolean(row.isDefault),
     isActive: Boolean(row.isActive),
     createdAt: row.createdAt,
@@ -51,6 +54,44 @@ export async function create(params: CreateVariantParams): Promise<ProductVarian
   const id = generateUUID();
   const now = new Date().toISOString();
 
+  // Check if barcode already exists (across all products and variants)
+  if (params.barcode) {
+    // Check in variants
+    const existingVariant = await getByBarcode(params.barcode);
+    if (existingVariant) {
+      throw new Error(`Barcode "${params.barcode}" already exists on another variant`);
+    }
+
+    // Check in products
+    const { executeQuerySingle: execQuerySingle } = await import('../../database');
+    const existingProduct = await execQuerySingle<any>(
+      'SELECT id, name FROM products WHERE barcode = ? AND isActive = 1',
+      [params.barcode]
+    );
+    if (existingProduct) {
+      throw new Error(`Barcode "${params.barcode}" already exists on product: ${existingProduct.name}`);
+    }
+  }
+
+  // Check if SKU already exists (across all products and variants)
+  if (params.sku) {
+    // Check in variants
+    const existingVariant = await getBySku(params.sku);
+    if (existingVariant) {
+      throw new Error(`SKU "${params.sku}" already exists on another variant`);
+    }
+
+    // Check in products
+    const { executeQuerySingle: execQuerySingle } = await import('../../database');
+    const existingProduct = await execQuerySingle<any>(
+      'SELECT id, name FROM products WHERE sku = ? AND isActive = 1',
+      [params.sku]
+    );
+    if (existingProduct) {
+      throw new Error(`SKU "${params.sku}" already exists on product: ${existingProduct.name}`);
+    }
+  }
+
   // If this is set as default, unset other defaults for this product
   if (params.isDefault) {
     await executeWrite(
@@ -61,8 +102,8 @@ export async function create(params: CreateVariantParams): Promise<ProductVarian
 
   await executeWrite(
     `INSERT INTO product_variants 
-     (id, productId, name, unit, sellingPrice, purchasePrice, barcode, sku, isDefault, isActive, createdAt, updatedAt) 
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+     (id, productId, name, unit, sellingPrice, purchasePrice, barcode, sku, currentQuantity, isDefault, isActive, createdAt, updatedAt) 
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
     [
       id,
       params.productId,
@@ -72,6 +113,7 @@ export async function create(params: CreateVariantParams): Promise<ProductVarian
       params.purchasePrice || null,
       params.barcode || null,
       params.sku || null,
+      params.currentQuantity || 0,
       params.isDefault ? 1 : 0,
       now,
       now,
@@ -168,6 +210,11 @@ export async function update(
   if (params.sku !== undefined) {
     updates.push('sku = ?');
     values.push(params.sku || null);
+  }
+
+  if (params.currentQuantity !== undefined) {
+    updates.push('currentQuantity = ?');
+    values.push(params.currentQuantity);
   }
 
   if (params.isActive !== undefined) {

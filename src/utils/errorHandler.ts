@@ -1,9 +1,9 @@
 /**
  * Global error handler for production builds
  * Prevents app crashes from unhandled promise rejections
+ * 
+ * Note: ErrorUtils is only available in production builds, not in dev/Expo Go
  */
-
-import { ErrorUtils } from 'react-native';
 
 let isErrorHandlerInitialized = false;
 
@@ -12,34 +12,47 @@ export function initializeErrorHandler(): void {
     return;
   }
 
-  // Set custom global error handler
-  ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
-    if (__DEV__) {
-      // eslint-disable-next-line no-console
-      console.error('Global Error Handler:', error, 'isFatal:', isFatal);
-    }
-    
-    // Report to Sentry
+  // Skip in development - Sentry and ErrorBoundary handle everything
+  if (__DEV__) {
+    isErrorHandlerInitialized = true;
+    return;
+  }
+
+  // Defer initialization until next tick to ensure ErrorUtils is available
+  setTimeout(() => {
     try {
-      const { captureException } = require('../services/sentryService');
-      captureException(error, {
-        isFatal,
-        source: 'globalErrorHandler',
+      // Dynamically import ErrorUtils - only available in production builds
+      const { ErrorUtils } = require('react-native');
+      
+      if (!ErrorUtils || typeof ErrorUtils.setGlobalHandler !== 'function') {
+        return;
+      }
+
+      // Set custom global error handler
+      ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
+        // Report to Sentry
+        try {
+          const { captureException } = require('../services/sentryService');
+          captureException(error, {
+            isFatal,
+            source: 'globalErrorHandler',
+          });
+        } catch {
+          // Sentry reporting failed, but don't crash
+        }
+        
+        // Try to recover from non-fatal errors
+        if (!isFatal) {
+          return;
+        }
+        
+        // For fatal errors, let the ErrorBoundary handle it
+        throw error;
       });
     } catch {
-      // Sentry reporting failed, but don't crash
+      // Failed to initialize, but don't crash
     }
-    
-    // In production, we could log to a crash reporting service
-    // For now, just prevent the crash
-    if (!isFatal) {
-      // Try to recover from non-fatal errors
-      return;
-    }
-    
-    // For fatal errors, let the ErrorBoundary handle it
-    throw error;
-  });
+  }, 0);
 
   isErrorHandlerInitialized = true;
 }

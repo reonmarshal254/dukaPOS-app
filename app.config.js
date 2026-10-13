@@ -91,10 +91,15 @@ export default {
         },
       ],
       [
-        '@sentry/react-native',
+        '@sentry/react-native/expo',
         {
           organization: 'mcokoth-technologies',
           project: 'duka',
+          url: 'https://sentry.io/',
+          // Disable source map upload (requires auth token)
+          // Crash reporting still works, but stack traces won't show original source locations
+          setCommits: false,
+          deployPreview: false,
         },
       ],
 

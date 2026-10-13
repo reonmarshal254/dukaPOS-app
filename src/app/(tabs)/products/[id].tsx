@@ -23,6 +23,7 @@ import { useProduct, useUpdateProduct, useDeleteProduct } from '../../../hooks/u
 import { useCategories } from '../../../hooks/useCategories';
 import { useProductVariants, useDeleteVariant } from '../../../hooks/useProductVariants';
 import AddVariantModal from '../../../components/products/AddVariantModal';
+import EditVariantModal from '../../../components/products/EditVariantModal';
 import { toMinorUnits, toMajorUnits, formatCurrency } from '../../../utils/currency';
 import { PlusIcon, TrashIcon } from '../../../components/common/Icons';
 import { COLORS } from '../../../constants/colors';
@@ -49,6 +50,8 @@ export default function EditProductScreen() {
   const [stockAdjustment, setStockAdjustment] = useState('0');
   const [adjustmentReason, setAdjustmentReason] = useState('');
   const [addVariantVisible, setAddVariantVisible] = useState(false);
+  const [editVariantVisible, setEditVariantVisible] = useState(false);
+  const [selectedVariant, setSelectedVariant] = useState<any>(null);
   
   const { data: product, isLoading } = useProduct(id);
   const { data: variants = [] } = useProductVariants(id);
@@ -664,7 +667,15 @@ export default function EditProductScreen() {
               ) : (
                 <View style={styles.variantsList}>
                   {variants.map((variant) => (
-                    <View key={variant.id} style={styles.variantCard}>
+                    <TouchableOpacity
+                      key={variant.id}
+                      style={styles.variantCard}
+                      onPress={() => {
+                        setSelectedVariant(variant);
+                        setEditVariantVisible(true);
+                      }}
+                      activeOpacity={0.7}
+                    >
                       <View style={styles.variantMain}>
                         <View style={{ flex: 1 }}>
                           <View style={styles.variantNameRow}>
@@ -676,6 +687,7 @@ export default function EditProductScreen() {
                             )}
                           </View>
                           <Text style={styles.variantUnit}>{variant.unit}</Text>
+                          <Text style={styles.variantStock}>Stock: {variant.currentQuantity}</Text>
                           {variant.barcode && (
                             <Text style={styles.variantMeta}>Barcode: {variant.barcode}</Text>
                           )}
@@ -694,27 +706,10 @@ export default function EditProductScreen() {
                           )}
                         </View>
                       </View>
-                      <TouchableOpacity
-                        style={styles.deleteVariantBtn}
-                        onPress={() => {
-                          Alert.alert(
-                            'Delete Variant',
-                            `Delete "${variant.name}"?`,
-                            [
-                              { text: 'Cancel', style: 'cancel' },
-                              {
-                                text: 'Delete',
-                                style: 'destructive',
-                                onPress: () =>
-                                  deleteVariant.mutate({ id: variant.id, productId: id }),
-                              },
-                            ]
-                          );
-                        }}
-                      >
-                        <TrashIcon size={16} color={COLORS.error} />
-                      </TouchableOpacity>
-                    </View>
+                      <View style={styles.tapHint}>
+                        <Text style={styles.tapHintText}>Tap to edit</Text>
+                      </View>
+                    </TouchableOpacity>
                   ))}
                 </View>
               )}
@@ -745,6 +740,19 @@ export default function EditProductScreen() {
         productId={id}
         productName={product?.name || ''}
         onClose={() => setAddVariantVisible(false)}
+      />
+
+      <EditVariantModal
+        visible={editVariantVisible}
+        variant={selectedVariant}
+        productName={product?.name || ''}
+        onClose={() => {
+          setEditVariantVisible(false);
+          setSelectedVariant(null);
+        }}
+        onDelete={(variantId) => {
+          deleteVariant.mutate({ id: variantId, productId: id });
+        }}
       />
     </SafeAreaView>
   );
@@ -1000,6 +1008,12 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginBottom: 4,
   },
+  variantStock: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.info,
+    marginBottom: 4,
+  },
   variantMeta: {
     fontSize: TYPOGRAPHY.fontSize.xs,
     color: COLORS.textSecondary,
@@ -1017,13 +1031,18 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.xs,
     color: COLORS.textSecondary,
   },
-  deleteVariantBtn: {
-    position: 'absolute',
-    top: SPACING.sm,
-    right: SPACING.sm,
-    padding: SPACING.xs,
+  tapHint: {
     backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.md,
+    borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
+    marginTop: SPACING.xs,
+  },
+  tapHintText: {
+    fontSize: 10,
+    color: COLORS.textSecondary,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
   },
   footer: {
     padding: SPACING.lg,

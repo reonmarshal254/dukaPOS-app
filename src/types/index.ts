@@ -65,6 +65,7 @@ export interface ProductVariant {
   purchasePrice?: number;
   barcode?: string;
   sku?: string;
+  currentQuantity: number; // stock quantity for this variant
   isDefault: boolean; // one variant should be default
   isActive: boolean;
   createdAt: ISODateTime;

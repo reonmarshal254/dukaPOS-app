@@ -333,6 +333,7 @@ CREATE TABLE IF NOT EXISTS ${TABLES.PRODUCT_VARIANTS} (
   purchasePrice INTEGER,
   barcode TEXT,
   sku TEXT,
+  currentQuantity INTEGER DEFAULT 0,
   isDefault INTEGER DEFAULT 0,
   isActive INTEGER DEFAULT 1,
   createdAt TEXT NOT NULL,

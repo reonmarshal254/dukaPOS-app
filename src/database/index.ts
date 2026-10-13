@@ -170,6 +170,22 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
       }
     }
 
+    // Migration 6: Add currentQuantity to product_variants
+    if (currentVersion < 6) {
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log('Running migration 6: Adding stock tracking to variants');
+      }
+      await db.execAsync(`
+        ALTER TABLE product_variants ADD COLUMN currentQuantity INTEGER DEFAULT 0;
+      `);
+      await db.execAsync('PRAGMA user_version = 6;');
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log('Migration 6 completed');
+      }
+    }
+
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Migration error:', error);
