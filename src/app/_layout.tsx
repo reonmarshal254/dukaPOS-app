@@ -7,6 +7,15 @@ import { initializeDatabase } from '../database';
 import { initNotifications, addNotificationResponseListener } from '../services/notificationService';
 import { COLORS } from '../constants/colors';
 import { TYPOGRAPHY } from '../constants/typography';
+import { ErrorBoundary } from '../components/ErrorBoundary';
+import { initializeErrorHandler } from '../utils/errorHandler';
+import { initializeSentry } from '../services/sentryService';
+
+// Initialize Sentry FIRST - before any other code runs
+initializeSentry();
+
+// Initialize global error handler
+initializeErrorHandler();
 
 // Create a client
 const queryClient = new QueryClient({
@@ -25,19 +34,31 @@ export default function RootLayout() {
   useEffect(() => {
     const init = async () => {
       try {
-        console.log('Initializing database...');
+        if (__DEV__) {
+          // eslint-disable-next-line no-console
+          console.log('Initializing database...');
+        }
         await initializeDatabase();
-        console.log('Database ready');
+        if (__DEV__) {
+          // eslint-disable-next-line no-console
+          console.log('Database ready');
+        }
 
         // Initialise notifications (request permission + schedule 7am reminder)
-        await initNotifications().catch((e) =>
-          console.warn('Notification init warning:', e)
-        );
+        await initNotifications().catch((e) => {
+          if (__DEV__) {
+            // eslint-disable-next-line no-console
+            console.warn('Notification init warning:', e);
+          }
+        });
 
         setIsDbReady(true);
       } catch (error: any) {
-        console.error('Failed to initialize database:', error);
-        setError(error.message || 'Database initialization failed');
+        if (__DEV__) {
+          // eslint-disable-next-line no-console
+          console.error('Failed to initialize database:', error);
+        }
+        setError(error?.message || 'Database initialization failed');
       }
     };
 
@@ -45,7 +66,10 @@ export default function RootLayout() {
 
     // Listen for taps on notifications for future deep-linking
     const sub = addNotificationResponseListener((data) => {
-      console.log('Notification tapped:', data?.type);
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log('Notification tapped:', data?.type);
+      }
     });
 
     return () => {
@@ -77,15 +101,17 @@ export default function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(tabs)" />
-        </Stack>
-      </QueryClientProvider>
-    </SafeAreaProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(tabs)" />
+          </Stack>
+        </QueryClientProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }
 

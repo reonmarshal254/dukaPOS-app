@@ -90,6 +90,13 @@ export default {
           sounds: [],
         },
       ],
+      [
+        '@sentry/react-native',
+        {
+          organization: 'mcokoth-technologies',
+          project: 'duka',
+        },
+      ],
 
       '@react-native-community/datetimepicker',
       'expo-sharing',
@@ -102,6 +109,7 @@ export default {
     extra: {
       // Readable at runtime via Constants.expoConfig.extra
       adminApiUrl: ADMIN_API_URL,
+      sentryDsn: process.env.SENTRY_DSN || '',
       paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY || 'pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
       isProduction: IS_PRODUCTION,
       appVersion: '1.0.0',

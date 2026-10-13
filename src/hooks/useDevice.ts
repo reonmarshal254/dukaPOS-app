@@ -25,10 +25,15 @@ export interface DeviceInfo {
 // Read from app.config.js extra — the only reliable way to pass env vars to
 // React Native at runtime. Falls back to the Android emulator host.
 function getAdminUrl(): string {
-  return (
-    (Constants.expoConfig?.extra as any)?.adminApiUrl ??
-    'http://10.0.2.2:5000'
-  );
+  try {
+    return (
+      (Constants.expoConfig?.extra as any)?.adminApiUrl ??
+      'http://10.0.2.2:5000'
+    );
+  } catch (error) {
+    // Fallback if Constants fails in production
+    return 'https://dukapos-gjfx.onrender.com';
+  }
 }
 
 // ─── Stable device ID ─────────────────────────────────────────────────────────

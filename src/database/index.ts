@@ -15,11 +15,17 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
     );
     const currentVersion = versionResult?.user_version || 0;
 
-    console.log(`Current database version: ${currentVersion}`);
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.log(`Current database version: ${currentVersion}`);
+    }
 
     // Migration 1: Add SKU field to products table
     if (currentVersion < 1) {
-      console.log('Running migration 1: Adding SKU field to products table');
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log('Running migration 1: Adding SKU field to products table');
+      }
       await db.execAsync(`
         ALTER TABLE products ADD COLUMN sku TEXT;
       `);
@@ -27,12 +33,18 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
       `);
       await db.execAsync('PRAGMA user_version = 1;');
-      console.log('Migration 1 completed');
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log('Migration 1 completed');
+      }
     }
 
     // Migration 2: Add rating to suppliers and date to expenses
     if (currentVersion < 2) {
-      console.log('Running migration 2: Enhancing suppliers and expenses tables');
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log('Running migration 2: Enhancing suppliers and expenses tables');
+      }
       await db.execAsync(`
         ALTER TABLE suppliers ADD COLUMN rating INTEGER DEFAULT 0;
       `);
@@ -50,12 +62,18 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category);
       `);
       await db.execAsync('PRAGMA user_version = 2;');
-      console.log('Migration 2 completed');
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log('Migration 2 completed');
+      }
     }
 
     // Migration 3: Create supplier_supplies table
     if (currentVersion < 3) {
-      console.log('Running migration 3: Creating supplier_supplies table');
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log('Running migration 3: Creating supplier_supplies table');
+      }
       await db.execAsync(`
         CREATE TABLE IF NOT EXISTS supplier_supplies (
           id TEXT PRIMARY KEY NOT NULL,
@@ -77,12 +95,18 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_supplier_supplies_date ON supplier_supplies(supplyDate);
       `);
       await db.execAsync('PRAGMA user_version = 3;');
-      console.log('Migration 3 completed');
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log('Migration 3 completed');
+      }
     }
 
     // Migration 4: Create product_variants table
     if (currentVersion < 4) {
-      console.log('Running migration 4: Creating product_variants table');
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log('Running migration 4: Creating product_variants table');
+      }
       await db.execAsync(`
         CREATE TABLE IF NOT EXISTS product_variants (
           id TEXT PRIMARY KEY NOT NULL,
@@ -110,12 +134,18 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_product_variants_sku ON product_variants(sku);
       `);
       await db.execAsync('PRAGMA user_version = 4;');
-      console.log('Migration 4 completed');
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log('Migration 4 completed');
+      }
     }
 
     // Migration 5: Create receipts table
     if (currentVersion < 5) {
-      console.log('Running migration 5: Creating receipts table');
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log('Running migration 5: Creating receipts table');
+      }
       await db.execAsync(`
         CREATE TABLE IF NOT EXISTS receipts (
           id TEXT PRIMARY KEY NOT NULL,
@@ -134,10 +164,14 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_receipts_number ON receipts(receipt_number);
       `);
       await db.execAsync('PRAGMA user_version = 5;');
-      console.log('Migration 5 completed');
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log('Migration 5 completed');
+      }
     }
 
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Migration error:', error);
     throw error;
   }
@@ -159,13 +193,19 @@ export async function initializeDatabase(): Promise<SQLite.SQLiteDatabase> {
     await database.execAsync('PRAGMA foreign_keys = ON;');
 
     // Create all tables
-    console.log('Creating database tables...');
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.log('Creating database tables...');
+    }
     for (const tableSQL of ALL_TABLES) {
       await database.execAsync(tableSQL);
     }
 
     // Create indexes
-    console.log('Creating database indexes...');
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.log('Creating database indexes...');
+    }
     for (const indexSQL of CREATE_INDEXES) {
       await database.execAsync(indexSQL);
     }
@@ -173,9 +213,13 @@ export async function initializeDatabase(): Promise<SQLite.SQLiteDatabase> {
     // Run migrations
     await runMigrations(database);
 
-    console.log('Database initialized successfully');
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.log('Database initialized successfully');
+    }
     return database;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Database initialization error:', error);
     throw error;
   }
@@ -189,7 +233,10 @@ export function getDatabase(): SQLite.SQLiteDatabase {
     const error = new Error(
       'Database not initialized. The app is still loading. Please wait...'
     );
-    console.error('Database access attempted before initialization');
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.error('Database access attempted before initialization');
+    }
     throw error;
   }
   return database;
@@ -210,9 +257,14 @@ export async function executeQuery<T = any>(
     const result = await db.getAllAsync<T>(sql, params);
     return result;
   } catch (error: any) {
-    console.error('Query execution error:', error);
-    console.error('SQL:', sql);
-    console.error('Params:', params);
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.error('Query execution error:', error);
+      // eslint-disable-next-line no-console
+      console.error('SQL:', sql);
+      // eslint-disable-next-line no-console
+      console.error('Params:', params);
+    }
     throw new Error(`Query failed: ${error.message || 'Unknown error'}`);
   }
 }
@@ -232,9 +284,14 @@ export async function executeQuerySingle<T = any>(
     const result = await db.getFirstAsync<T>(sql, params);
     return result || null;
   } catch (error: any) {
-    console.error('Query execution error:', error);
-    console.error('SQL:', sql);
-    console.error('Params:', params);
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.error('Query execution error:', error);
+      // eslint-disable-next-line no-console
+      console.error('SQL:', sql);
+      // eslint-disable-next-line no-console
+      console.error('Params:', params);
+    }
     throw new Error(`Query failed: ${error.message || 'Unknown error'}`);
   }
 }
@@ -254,9 +311,14 @@ export async function executeWrite(
     const result = await db.runAsync(sql, params);
     return result;
   } catch (error: any) {
-    console.error('Write execution error:', error);
-    console.error('SQL:', sql);
-    console.error('Params:', params);
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.error('Write execution error:', error);
+      // eslint-disable-next-line no-console
+      console.error('SQL:', sql);
+      // eslint-disable-next-line no-console
+      console.error('Params:', params);
+    }
     throw new Error(`Write operation failed: ${error.message || 'Unknown error'}`);
   }
 }
@@ -275,7 +337,10 @@ export async function executeTransaction(
     await db.execAsync('COMMIT;');
   } catch (error) {
     await db.execAsync('ROLLBACK;');
-    console.error('Transaction error:', error);
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.error('Transaction error:', error);
+    }
     throw error;
   }
 }
@@ -295,7 +360,10 @@ export async function isDatabaseInitialized(): Promise<boolean> {
     
     return (result?.count ?? 0) > 0;
   } catch (error) {
-    console.error('Error checking database initialization:', error);
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.error('Error checking database initialization:', error);
+    }
     return false;
   }
 }

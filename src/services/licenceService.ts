@@ -48,21 +48,47 @@ export type BillingPlan = 'daily' | 'weekly' | 'monthly' | 'lifetime';
 
 // Read pricing from Constants.expoConfig.extra (loaded from eas.json env at build time)
 function getPlanPrices() {
-  const extra = (Constants.expoConfig?.extra as any) || {};
-  return {
-    daily:    parseInt(extra.planPrices?.daily    || '10000',  10),
-    weekly:   parseInt(extra.planPrices?.weekly   || '60000',  10),
-    monthly:  parseInt(extra.planPrices?.monthly  || '200000', 10),
-    lifetime: parseInt(extra.planPrices?.lifetime || '1000000',10),
-  };
+  try {
+    const extra = (Constants.expoConfig?.extra as any) || {};
+    return {
+      daily:    parseInt(extra.planPrices?.daily    || '10000',  10),
+      weekly:   parseInt(extra.planPrices?.weekly   || '60000',  10),
+      monthly:  parseInt(extra.planPrices?.monthly  || '200000', 10),
+      lifetime: parseInt(extra.planPrices?.lifetime || '1000000',10),
+    };
+  } catch (error) {
+    // Fallback to default prices if Constants fails to load
+    return {
+      daily:    10000,
+      weekly:   60000,
+      monthly:  200000,
+      lifetime: 1000000,
+    };
+  }
 }
 
-export const PLANS: Record<BillingPlan, { label: string; price: number; duration: string; popular?: boolean }> = {
-  daily:    { label: 'Daily',    price: getPlanPrices().daily,    duration: '1 day'    },
-  weekly:   { label: 'Weekly',   price: getPlanPrices().weekly,   duration: '7 days',  popular: true },
-  monthly:  { label: 'Monthly',  price: getPlanPrices().monthly,  duration: '30 days'  },
-  lifetime: { label: 'Lifetime', price: getPlanPrices().lifetime, duration: 'Forever'  },
-};
+// Lazy getter for PLANS to avoid module-load-time crashes
+let _cachedPlans: Record<BillingPlan, { label: string; price: number; duration: string; popular?: boolean }> | null = null;
+
+export function getPlans() {
+  if (!_cachedPlans) {
+    const prices = getPlanPrices();
+    _cachedPlans = {
+      daily:    { label: 'Daily',    price: prices.daily,    duration: '1 day'    },
+      weekly:   { label: 'Weekly',   price: prices.weekly,   duration: '7 days',  popular: true },
+      monthly:  { label: 'Monthly',  price: prices.monthly,  duration: '30 days'  },
+      lifetime: { label: 'Lifetime', price: prices.lifetime, duration: 'Forever'  },
+    };
+  }
+  return _cachedPlans;
+}
+
+// Legacy export for backwards compatibility - but prefer using getPlans()
+export const PLANS: Record<BillingPlan, { label: string; price: number; duration: string; popular?: boolean }> = new Proxy({} as any, {
+  get(_target, prop: string) {
+    return getPlans()[prop as BillingPlan];
+  }
+});
 
 // ─── SecureStore keys ─────────────────────────────────────────────────────────
 const KEYS = {
@@ -72,10 +98,15 @@ const KEYS = {
 
 // ─── Admin API URL ─────────────────────────────────────────────────────────────
 export function getAdminUrl(): string {
-  return (
-    (Constants.expoConfig?.extra as any)?.adminApiUrl ??
-    'http://10.0.2.2:5000'
-  );
+  try {
+    return (
+      (Constants.expoConfig?.extra as any)?.adminApiUrl ??
+      'http://10.0.2.2:5000'
+    );
+  } catch (error) {
+    // Fallback if Constants fails in production
+    return 'https://dukapos-gjfx.onrender.com';
+  }
 }
 
 // ─── Cache helpers ────────────────────────────────────────────────────────────

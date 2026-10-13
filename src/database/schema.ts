@@ -421,7 +421,7 @@ export const CREATE_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_products_category ON ${TABLES.PRODUCTS}(category_id);`,
   `CREATE INDEX IF NOT EXISTS idx_products_barcode ON ${TABLES.PRODUCTS}(barcode);`,
   `CREATE INDEX IF NOT EXISTS idx_products_active ON ${TABLES.PRODUCTS}(is_active);`,
-  `CREATE INDEX IF NOT EXISTS idx_products_sku ON ${TABLES.PRODUCTS}(sku);`,
+  // SKU index created in migration 1 after column is added
   `CREATE INDEX IF NOT EXISTS idx_stock_batches_product ON ${TABLES.STOCK_BATCHES}(product_id);`,
   `CREATE INDEX IF NOT EXISTS idx_stock_batches_expiry ON ${TABLES.STOCK_BATCHES}(expiry_date);`,
   `CREATE INDEX IF NOT EXISTS idx_stock_movements_product ON ${TABLES.STOCK_MOVEMENTS}(product_id);`,
