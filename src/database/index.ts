@@ -26,12 +26,22 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
         // eslint-disable-next-line no-console
         console.log('Running migration 1: Adding SKU field to products table');
       }
-      await db.execAsync(`
-        ALTER TABLE products ADD COLUMN sku TEXT;
-      `);
-      await db.execAsync(`
-        CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
-      `);
+      
+      // Check if column already exists (for fresh installs vs migrations)
+      const tableInfo = await db.getAllAsync<{ name: string }>(
+        "PRAGMA table_info(products);"
+      );
+      const hasSku = tableInfo.some(col => col.name === 'sku');
+      
+      if (!hasSku) {
+        await db.execAsync(`
+          ALTER TABLE products ADD COLUMN sku TEXT;
+        `);
+        await db.execAsync(`
+          CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
+        `);
+      }
+      
       await db.execAsync('PRAGMA user_version = 1;');
       if (__DEV__) {
         // eslint-disable-next-line no-console
@@ -45,16 +55,35 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
         // eslint-disable-next-line no-console
         console.log('Running migration 2: Enhancing suppliers and expenses tables');
       }
-      await db.execAsync(`
-        ALTER TABLE suppliers ADD COLUMN rating INTEGER DEFAULT 0;
-      `);
-      await db.execAsync(`
-        ALTER TABLE expenses ADD COLUMN date TEXT;
-      `);
-      // Update existing expenses to have date = created_at
-      await db.execAsync(`
-        UPDATE expenses SET date = created_at WHERE date IS NULL;
-      `);
+      
+      // Check if rating column exists in suppliers
+      const supplierInfo = await db.getAllAsync<{ name: string }>(
+        "PRAGMA table_info(suppliers);"
+      );
+      const hasRating = supplierInfo.some(col => col.name === 'rating');
+      
+      if (!hasRating) {
+        await db.execAsync(`
+          ALTER TABLE suppliers ADD COLUMN rating INTEGER DEFAULT 0;
+        `);
+      }
+      
+      // Check if date column exists in expenses
+      const expensesInfo = await db.getAllAsync<{ name: string }>(
+        "PRAGMA table_info(expenses);"
+      );
+      const hasDate = expensesInfo.some(col => col.name === 'date');
+      
+      if (!hasDate) {
+        await db.execAsync(`
+          ALTER TABLE expenses ADD COLUMN date TEXT;
+        `);
+        // Update existing expenses to have date = created_at
+        await db.execAsync(`
+          UPDATE expenses SET date = created_at WHERE date IS NULL;
+        `);
+      }
+      
       await db.execAsync(`
         CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
       `);
@@ -117,6 +146,7 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
           purchasePrice INTEGER,
           barcode TEXT,
           sku TEXT,
+          currentQuantity INTEGER DEFAULT 0,
           isDefault INTEGER DEFAULT 0,
           isActive INTEGER DEFAULT 1,
           createdAt TEXT NOT NULL,
@@ -167,32 +197,6 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
       if (__DEV__) {
         // eslint-disable-next-line no-console
         console.log('Migration 5 completed');
-      }
-    }
-
-    // Migration 6: Add currentQuantity to product_variants
-    if (currentVersion < 6) {
-      if (__DEV__) {
-        // eslint-disable-next-line no-console
-        console.log('Running migration 6: Adding stock tracking to variants');
-      }
-      
-      // Check if column already exists (for fresh installs vs migrations)
-      const tableInfo = await db.getAllAsync<{ name: string }>(
-        "PRAGMA table_info(product_variants);"
-      );
-      const hasCurrentQuantity = tableInfo.some(col => col.name === 'currentQuantity');
-      
-      if (!hasCurrentQuantity) {
-        await db.execAsync(`
-          ALTER TABLE product_variants ADD COLUMN currentQuantity INTEGER DEFAULT 0;
-        `);
-      }
-      
-      await db.execAsync('PRAGMA user_version = 6;');
-      if (__DEV__) {
-        // eslint-disable-next-line no-console
-        console.log('Migration 6 completed');
       }
     }
 
@@ -417,8 +421,11 @@ export async function dropAllTables(): Promise<void> {
     'sync_logs',
     'sync_queue',
     'app_settings',
+    'receipts',
+    'product_variants',
     'expenses',
     'supplier_payments',
+    'supplier_supplies',
     'customer_ledger',
     'payments',
     'sale_items',

@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS ${TABLES.PRODUCTS} (
   description TEXT,
   category_id TEXT,
   barcode TEXT,
+  sku TEXT,
   image_url TEXT,
   local_image_path TEXT,
   purchase_price INTEGER NOT NULL,
@@ -112,6 +113,7 @@ CREATE TABLE IF NOT EXISTS ${TABLES.SUPPLIERS} (
   email TEXT,
   address TEXT,
   notes TEXT,
+  rating INTEGER DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -305,6 +307,7 @@ CREATE TABLE IF NOT EXISTS ${TABLES.EXPENSES} (
   amount INTEGER NOT NULL,
   payment_method TEXT NOT NULL,
   notes TEXT,
+  date TEXT,
   created_at TEXT NOT NULL
 );
 `;
@@ -421,8 +424,10 @@ CREATE TABLE IF NOT EXISTS ${TABLES.AUDIT_LOGS} (
 export const CREATE_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_products_category ON ${TABLES.PRODUCTS}(category_id);`,
   `CREATE INDEX IF NOT EXISTS idx_products_barcode ON ${TABLES.PRODUCTS}(barcode);`,
+  `CREATE INDEX IF NOT EXISTS idx_products_sku ON ${TABLES.PRODUCTS}(sku);`,
   `CREATE INDEX IF NOT EXISTS idx_products_active ON ${TABLES.PRODUCTS}(is_active);`,
-  // SKU index created in migration 1 after column is added
+  `CREATE INDEX IF NOT EXISTS idx_expenses_date ON ${TABLES.EXPENSES}(date);`,
+  `CREATE INDEX IF NOT EXISTS idx_expenses_category ON ${TABLES.EXPENSES}(category);`,
   `CREATE INDEX IF NOT EXISTS idx_stock_batches_product ON ${TABLES.STOCK_BATCHES}(product_id);`,
   `CREATE INDEX IF NOT EXISTS idx_stock_batches_expiry ON ${TABLES.STOCK_BATCHES}(expiry_date);`,
   `CREATE INDEX IF NOT EXISTS idx_stock_movements_product ON ${TABLES.STOCK_MOVEMENTS}(product_id);`,
@@ -437,6 +442,7 @@ export const CREATE_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON ${TABLES.SYNC_QUEUE}(status);`,
   `CREATE INDEX IF NOT EXISTS idx_sync_queue_entity ON ${TABLES.SYNC_QUEUE}(entity_type, entity_id);`,
   `CREATE INDEX IF NOT EXISTS idx_supplier_supplies_supplier ON ${TABLES.SUPPLIER_SUPPLIES}(supplierId);`,
+  `CREATE INDEX IF NOT EXISTS idx_supplier_supplies_date ON ${TABLES.SUPPLIER_SUPPLIES}(supplyDate);`,
   `CREATE INDEX IF NOT EXISTS idx_product_variants_product ON ${TABLES.PRODUCT_VARIANTS}(productId);`,
   `CREATE INDEX IF NOT EXISTS idx_product_variants_barcode ON ${TABLES.PRODUCT_VARIANTS}(barcode);`,
   `CREATE INDEX IF NOT EXISTS idx_product_variants_sku ON ${TABLES.PRODUCT_VARIANTS}(sku);`,
