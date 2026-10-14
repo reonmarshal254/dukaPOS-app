@@ -21,10 +21,11 @@ const SOURCE_IMAGE = path.join(ASSETS_DIR, 'dukaPOS-LOGO.jfif');
 
 // Icon configurations
 const ICON_CONFIGS = [
-  { name: 'icon.png', width: 1024, height: 1024, fit: 'contain', background: '#ffffff' },
-  { name: 'adaptive-icon.png', width: 1024, height: 1024, fit: 'contain', background: '#ffffff' },
-  { name: 'splash.png', width: 1284, height: 2778, fit: 'contain', background: '#ffffff' },
-  { name: 'favicon.png', width: 48, height: 48, fit: 'contain', background: '#ffffff' },
+  { name: 'icon.png', width: 1024, height: 1024, fit: 'contain', background: '#2563EB' },
+  { name: 'adaptive-icon.png', width: 1024, height: 1024, fit: 'contain', background: '#2563EB' },
+  { name: 'notification-icon.png', width: 96, height: 96, fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  { name: 'splash.png', width: 1284, height: 2778, fit: 'contain', background: '#2563EB' },
+  { name: 'favicon.png', width: 48, height: 48, fit: 'contain', background: '#2563EB' },
 ];
 
 async function generateIcons() {

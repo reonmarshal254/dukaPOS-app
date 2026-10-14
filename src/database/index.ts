@@ -176,9 +176,19 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
         // eslint-disable-next-line no-console
         console.log('Running migration 6: Adding stock tracking to variants');
       }
-      await db.execAsync(`
-        ALTER TABLE product_variants ADD COLUMN currentQuantity INTEGER DEFAULT 0;
-      `);
+      
+      // Check if column already exists (for fresh installs vs migrations)
+      const tableInfo = await db.getAllAsync<{ name: string }>(
+        "PRAGMA table_info(product_variants);"
+      );
+      const hasCurrentQuantity = tableInfo.some(col => col.name === 'currentQuantity');
+      
+      if (!hasCurrentQuantity) {
+        await db.execAsync(`
+          ALTER TABLE product_variants ADD COLUMN currentQuantity INTEGER DEFAULT 0;
+        `);
+      }
+      
       await db.execAsync('PRAGMA user_version = 6;');
       if (__DEV__) {
         // eslint-disable-next-line no-console

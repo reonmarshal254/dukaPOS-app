@@ -75,13 +75,11 @@ export function initializeSentry(): void {
       
       // Before send hook - you can filter events here
       beforeSend(event, hint) {
-        // Don't send events in development (optional)
         if (__DEV__) {
           // eslint-disable-next-line no-console
-          console.log('[Sentry] Event captured:', event);
-          // Uncomment to prevent sending in dev:
-          // return null;
+          console.log('[Sentry] 📤 Sending event to Sentry:', event.message || event.exception);
         }
+        // Always send events to Sentry (even in dev for testing)
         return event;
       },
       
