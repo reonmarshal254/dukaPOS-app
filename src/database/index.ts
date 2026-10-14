@@ -200,6 +200,39 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
       }
     }
 
+    // Migration 6: Backfill missing product_variants columns on existing installs
+    if (currentVersion < 6) {
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log('Running migration 6: Ensuring product_variants columns exist');
+      }
+      const variantInfo = await db.getAllAsync<{ name: string }>(
+        "PRAGMA table_info(product_variants);"
+      );
+      const variantColumns = new Set(variantInfo.map(col => col.name));
+      const missingVariantColumns: { name: string; ddl: string }[] = [
+        { name: 'currentQuantity', ddl: 'INTEGER DEFAULT 0' },
+        { name: 'isDefault', ddl: 'INTEGER DEFAULT 0' },
+        { name: 'isActive', ddl: 'INTEGER DEFAULT 1' },
+        { name: 'sku', ddl: 'TEXT' },
+      ];
+      for (const column of missingVariantColumns) {
+        if (!variantColumns.has(column.name)) {
+          await db.execAsync(
+            `ALTER TABLE product_variants ADD COLUMN ${column.name} ${column.ddl};`
+          );
+        }
+      }
+      await db.execAsync(
+        'UPDATE product_variants SET isActive = 1 WHERE isActive IS NULL;'
+      );
+      await db.execAsync('PRAGMA user_version = 6;');
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log('Migration 6 completed');
+      }
+    }
+
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Migration error:', error);
