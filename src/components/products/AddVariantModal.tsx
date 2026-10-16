@@ -206,6 +206,62 @@ export default function AddVariantModal({
               </View>
             </View>
 
+            {/* Profit/Loss Calculator */}
+            {(() => {
+              const purchase = parseFloat(purchasePrice || '0');
+              const selling = parseFloat(sellingPrice || '0');
+              
+              if (isNaN(purchase) || isNaN(selling) || purchase === 0 || selling === 0) {
+                return null;
+              }
+              
+              const difference = selling - purchase;
+              const percentage = ((difference / purchase) * 100).toFixed(1);
+              const isProfit = difference > 0;
+              const isLoss = difference < 0;
+              const isBreakeven = difference === 0;
+              
+              return (
+                <View style={[
+                  styles.profitLossCard,
+                  isProfit && styles.profitCard,
+                  isLoss && styles.lossCard,
+                  isBreakeven && styles.breakevenCard,
+                ]}>
+                  <View style={styles.profitLossHeader}>
+                    <Text style={[
+                      styles.profitLossLabel,
+                      isProfit && styles.profitText,
+                      isLoss && styles.lossText,
+                    ]}>
+                      {isProfit ? '📈 Profit' : isLoss ? '📉 Loss' : '➡️ Break Even'}
+                    </Text>
+                    <Text style={[
+                      styles.profitLossPercentage,
+                      isProfit && styles.profitText,
+                      isLoss && styles.lossText,
+                    ]}>
+                      {percentage}%
+                    </Text>
+                  </View>
+                  <Text style={[
+                    styles.profitLossAmount,
+                    isProfit && styles.profitText,
+                    isLoss && styles.lossText,
+                  ]}>
+                    {isProfit ? '+' : ''}{difference.toFixed(2)}
+                  </Text>
+                  <Text style={styles.profitLossNote}>
+                    {isProfit 
+                      ? 'Good margin for this variant!' 
+                      : isLoss 
+                      ? 'Warning: Selling below cost will result in loss.'
+                      : 'No profit or loss at this price.'}
+                  </Text>
+                </View>
+              );
+            })()}
+
             <Text style={styles.label}>Barcode (Optional)</Text>
             <View style={styles.barcodeRow}>
               <TextInput
@@ -447,5 +503,54 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.base,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#FFFFFF',
+  },
+  profitLossCard: {
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    marginTop: SPACING.sm,
+    borderWidth: 2,
+  },
+  profitCard: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#10B981',
+  },
+  lossCard: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#EF4444',
+  },
+  breakevenCard: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#9CA3AF',
+  },
+  profitLossHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.xs,
+  },
+  profitLossLabel: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.text,
+  },
+  profitLossPercentage: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+  profitLossAmount: {
+    fontSize: TYPOGRAPHY.fontSize.xl,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    marginBottom: SPACING.xs,
+  },
+  profitText: {
+    color: '#10B981',
+  },
+  lossText: {
+    color: '#EF4444',
+  },
+  profitLossNote: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.textSecondary,
+    fontStyle: 'italic',
   },
 });

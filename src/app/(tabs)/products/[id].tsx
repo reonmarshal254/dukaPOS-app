@@ -65,6 +65,8 @@ export default function EditProductScreen() {
     handleSubmit,
     reset,
     formState: { errors },
+    getValues,
+    watch,
   } = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
     defaultValues: {
@@ -398,6 +400,33 @@ export default function EditProductScreen() {
     );
   };
 
+  // Watch price fields to trigger real-time calculation
+  const watchedPurchasePrice = watch('purchasePrice');
+  const watchedSellingPrice = watch('sellingPrice');
+
+  // Calculate profit/loss for visual indicator
+  const calculateProfitLoss = () => {
+    const purchasePrice = parseFloat(watchedPurchasePrice || '0');
+    const sellingPrice = parseFloat(watchedSellingPrice || '0');
+    
+    if (isNaN(purchasePrice) || isNaN(sellingPrice) || purchasePrice === 0 || sellingPrice === 0) {
+      return null;
+    }
+    
+    const difference = sellingPrice - purchasePrice;
+    const percentage = ((difference / purchasePrice) * 100).toFixed(1);
+    
+    return {
+      amount: difference,
+      percentage,
+      isProfit: difference > 0,
+      isLoss: difference < 0,
+      isBreakeven: difference === 0,
+    };
+  };
+
+  const profitLoss = calculateProfitLoss();
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -568,6 +597,47 @@ export default function EditProductScreen() {
                 />
               )}
             />
+
+            {/* Profit/Loss Calculator */}
+            {profitLoss && (
+              <View style={[
+                styles.profitLossCard,
+                profitLoss.isProfit && styles.profitCard,
+                profitLoss.isLoss && styles.lossCard,
+                profitLoss.isBreakeven && styles.breakevenCard,
+              ]}>
+                <View style={styles.profitLossHeader}>
+                  <Text style={[
+                    styles.profitLossLabel,
+                    profitLoss.isProfit && styles.profitText,
+                    profitLoss.isLoss && styles.lossText,
+                  ]}>
+                    {profitLoss.isProfit ? '📈 Profit' : profitLoss.isLoss ? '📉 Loss' : '➡️ Break Even'}
+                  </Text>
+                  <Text style={[
+                    styles.profitLossPercentage,
+                    profitLoss.isProfit && styles.profitText,
+                    profitLoss.isLoss && styles.lossText,
+                  ]}>
+                    {profitLoss.percentage}%
+                  </Text>
+                </View>
+                <Text style={[
+                  styles.profitLossAmount,
+                  profitLoss.isProfit && styles.profitText,
+                  profitLoss.isLoss && styles.lossText,
+                ]}>
+                  {profitLoss.isProfit ? '+' : ''}{profitLoss.amount.toFixed(2)}
+                </Text>
+                <Text style={styles.profitLossNote}>
+                  {profitLoss.isProfit 
+                    ? 'Good margin! This product will generate profit.' 
+                    : profitLoss.isLoss 
+                    ? 'Warning: Selling below purchase price will result in loss.'
+                    : 'No profit or loss at this price.'}
+                </Text>
+              </View>
+            )}
 
             <Controller
               control={control}
@@ -1056,5 +1126,54 @@ const styles = StyleSheet.create({
   },
   updateButton: {
     flex: 1,
+  },
+  profitLossCard: {
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
+    borderWidth: 2,
+  },
+  profitCard: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#10B981',
+  },
+  lossCard: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#EF4444',
+  },
+  breakevenCard: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#9CA3AF',
+  },
+  profitLossHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.xs,
+  },
+  profitLossLabel: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.text,
+  },
+  profitLossPercentage: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+  profitLossAmount: {
+    fontSize: TYPOGRAPHY.fontSize['2xl'],
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    marginBottom: SPACING.xs,
+  },
+  profitText: {
+    color: '#10B981',
+  },
+  lossText: {
+    color: '#EF4444',
+  },
+  profitLossNote: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
+    fontStyle: 'italic',
   },
 });

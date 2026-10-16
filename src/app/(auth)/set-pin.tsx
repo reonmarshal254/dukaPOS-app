@@ -1,18 +1,20 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, Alert, ScrollView, Pressable, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Alert, ScrollView, Pressable, TextInput, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import PINKeypad from '../../components/common/PINKeypad';
 import Button from '../../components/common/Button';
-import { LockIcon, KeyIcon } from '../../components/common/Icons';
+import { KeyIcon } from '../../components/common/Icons';
 import { storePIN, storeSecurityQuestion } from '../../services/secureStorage';
 import { validatePIN } from '../../utils/validation';
 import { COLORS } from '../../constants/colors';
-import { SPACING } from '../../constants/spacing';
+import { SPACING, BORDER_RADIUS } from '../../constants/spacing';
 import { TYPOGRAPHY } from '../../constants/typography';
 import { SECURITY_CONFIG } from '../../constants/config';
 import { validatePINStrength } from '../../utils/securityConfig';
+
+const { width } = Dimensions.get('window');
+const KEY_SIZE = Math.min((width - SPACING.lg * 2 - SPACING.md * 2) / 3, 88);
 
 type SetupStep = 'enter' | 'confirm' | 'security-question' | 'security-answer';
 
@@ -25,10 +27,155 @@ const SECURITY_QUESTIONS = [
   "What was your childhood nickname?",
 ];
 
+// ─── Keypad ────────────────────────────────────────────────────────────────────
+function Keypad({
+  onPress,
+  onDelete,
+  onClear,
+  disabled = false,
+}: {
+  onPress: (v: string) => void;
+  onDelete: () => void;
+  onClear: () => void;
+  disabled?: boolean;
+}) {
+  const rows = [
+    ['1', '2', '3'],
+    ['4', '5', '6'],
+    ['7', '8', '9'],
+    ['C', '0', '←'],
+  ];
+
+  const handle = (v: string) => {
+    if (disabled) return;
+    if (v === '←') onDelete();
+    else if (v === 'C') onClear();
+    else onPress(v);
+  };
+
+  return (
+    <View style={kp.grid}>
+      {rows.map((row, ri) => (
+        <View key={ri} style={kp.row}>
+          {row.map((k) => {
+            const isAction = k === 'C' || k === '←';
+            return (
+              <Pressable
+                key={k}
+                disabled={disabled}
+                onPress={() => handle(k)}
+                style={({ pressed }) => [
+                  kp.key,
+                  isAction && kp.keyAction,
+                  pressed && !disabled && kp.keyPressed,
+                  disabled && kp.keyDisabled,
+                ]}
+              >
+                <Text style={[kp.keyText, isAction && kp.keyTextAction]}>
+                  {k}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const kp = StyleSheet.create({
+  grid: { width: '100%', alignSelf: 'center' },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.sm,
+  },
+  key: {
+    width: KEY_SIZE,
+    height: KEY_SIZE,
+    borderRadius: KEY_SIZE / 2,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  keyAction: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  keyPressed: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+    transform: [{ scale: 0.94 }],
+  },
+  keyDisabled: { opacity: 0.35 },
+  keyText: {
+    fontSize: TYPOGRAPHY.fontSize['2xl'],
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#FFFFFF',
+  },
+  keyTextAction: {
+    fontSize: TYPOGRAPHY.fontSize.xl,
+    color: 'rgba(255,255,255,0.55)',
+  },
+});
+
+// ─── PIN dots ──────────────────────────────────────────────────────────────────
+function PINDots({
+  filled,
+  hasError,
+}: {
+  filled: number;
+  hasError: boolean;
+}) {
+  return (
+    <View style={dd.row}>
+      {Array.from({ length: 4 }).map((_, i) => {
+        const active = i < filled;
+        return (
+          <View
+            key={i}
+            style={[
+              dd.dot,
+              active && (hasError ? dd.dotError : dd.dotFilled),
+            ]}
+          />
+        );
+      })}
+    </View>
+  );
+}
+
+const DOT = 20;
+const dd = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: SPACING.lg,
+    marginBottom: SPACING.xl,
+  },
+  dot: {
+    width: DOT,
+    height: DOT,
+    borderRadius: DOT / 2,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.35)',
+    backgroundColor: 'transparent',
+  },
+  dotFilled: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FFFFFF',
+  },
+  dotError: {
+    backgroundColor: '#FCA5A5',
+    borderColor: '#FCA5A5',
+  },
+});
+
 
 export default function SetPINScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [step, setStep] = useState<SetupStep>('enter');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -179,338 +326,314 @@ export default function SetPINScreen() {
 
   // Render security question selection
   if (step === 'security-question') {
+    const bg: [string, string, string] = [COLORS.primary, COLORS.primaryDark, '#1E3A8A'];
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <ScrollView 
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingBottom: insets.bottom + SPACING.xl }
-          ]}
-        >
-          <LinearGradient
-            colors={[COLORS.primary, COLORS.primaryDark]}
-            style={styles.header}
-          >
-            <View style={styles.iconContainer}>
-              <KeyIcon size={64} color="#FFFFFF" />
+      <LinearGradient colors={bg} start={{ x: 0, y: 0 }} end={{ x: 0.4, y: 1 }} style={{ flex: 1 }}>
+        <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+          <ScrollView contentContainerStyle={s.recoveryScroll} showsVerticalScrollIndicator={false}>
+            <View style={s.recoveryIconWrap}>
+              <KeyIcon size={36} color="#FFFFFF" />
             </View>
-            <Text style={styles.headerTitle}>Security Question</Text>
-            <Text style={styles.headerSubtitle}>Choose a question for PIN recovery</Text>
-          </LinearGradient>
+            <Text style={s.recoveryTitle}>Security Question</Text>
+            <Text style={s.recoverySubtitle}>Choose a question for PIN recovery</Text>
 
-          <View style={styles.content}>
-            <Text style={styles.sectionTitle}>Select a security question:</Text>
-            
-            {SECURITY_QUESTIONS.map((question, index) => (
-              <Pressable
-                key={index}
-                style={({ pressed }) => [
-                  styles.questionOption,
-                  pressed && styles.questionOptionPressed,
-                ]}
-                onPress={() => handleQuestionSelected(question)}
-              >
-                <Text style={styles.questionOptionText}>{question}</Text>
-              </Pressable>
-            ))}
-
-            <View style={styles.backButtonContainer}>
-              <Button
-                title="Back"
-                onPress={handleBack}
-                variant="outline"
-              />
+            <View style={{ marginTop: SPACING.xl }}>
+              {SECURITY_QUESTIONS.map((question, index) => (
+                <Pressable
+                  key={index}
+                  style={({ pressed }) => [
+                    s.glassCard,
+                    s.questionOption,
+                    pressed && s.questionOptionPressed,
+                  ]}
+                  onPress={() => handleQuestionSelected(question)}
+                >
+                  <Text style={s.questionOptionText}>{question}</Text>
+                </Pressable>
+              ))}
             </View>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
+
+            <View style={{ marginTop: SPACING.xl }}>
+              <Button title="Back" onPress={handleBack} variant="outline" />
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </LinearGradient>
     );
   }
 
   // Render security answer input
   if (step === 'security-answer') {
+    const bg: [string, string, string] = [COLORS.primary, COLORS.primaryDark, '#1E3A8A'];
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <ScrollView 
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingBottom: insets.bottom + SPACING.xl }
-          ]}
-        >
-          <LinearGradient
-            colors={[COLORS.primary, COLORS.primaryDark]}
-            style={styles.header}
-          >
-            <View style={styles.iconContainer}>
-              <KeyIcon size={64} color="#FFFFFF" />
+      <LinearGradient colors={bg} start={{ x: 0, y: 0 }} end={{ x: 0.4, y: 1 }} style={{ flex: 1 }}>
+        <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+          <ScrollView contentContainerStyle={s.recoveryScroll} showsVerticalScrollIndicator={false}>
+            <View style={s.recoveryIconWrap}>
+              <KeyIcon size={36} color="#FFFFFF" />
             </View>
-            <Text style={styles.headerTitle}>Security Answer</Text>
-            <Text style={styles.headerSubtitle}>This will help you recover your PIN</Text>
-          </LinearGradient>
+            <Text style={s.recoveryTitle}>Security Answer</Text>
+            <Text style={s.recoverySubtitle}>This will help you recover your PIN</Text>
 
-          <View style={styles.content}>
-            <View style={styles.questionCard}>
-              <Text style={styles.questionLabel}>Your Question</Text>
-              <Text style={styles.questionText}>{selectedQuestion}</Text>
+            <View style={s.glassCard}>
+              <Text style={s.glassCardLabel}>Your Question</Text>
+              <Text style={s.glassCardText}>{selectedQuestion}</Text>
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Your Answer</Text>
+            <View style={{ marginBottom: SPACING.xl }}>
+              <Text style={s.inputLabel}>Your Answer</Text>
               <TextInput
-                style={styles.textInput}
+                style={s.input}
                 value={securityAnswer}
                 onChangeText={setSecurityAnswer}
-                placeholder="Enter your answer"
-                placeholderTextColor={COLORS.textSecondary}
+                placeholder="Type your answer…"
+                placeholderTextColor="rgba(255,255,255,0.35)"
                 autoCapitalize="none"
                 autoCorrect={false}
                 autoFocus
               />
             </View>
 
-            <View style={styles.actionButtons}>
-              <Button
-                title="Complete Setup"
-                onPress={handleFinishSetup}
-                loading={loading}
-              />
-              <Button
-                title="Back"
-                onPress={handleBack}
-                variant="outline"
-              />
+            <View style={{ gap: SPACING.sm }}>
+              <Button title="Complete Setup" onPress={handleFinishSetup} loading={loading} />
+              <Button title="Back" onPress={handleBack} variant="outline" />
             </View>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
+          </ScrollView>
+        </SafeAreaView>
+      </LinearGradient>
     );
   }
 
-  // Render PIN entry/confirmation
+  // Render PIN entry/confirmation with unlock screen design
   const currentPin = step === 'enter' ? pin : confirmPin;
+  const bg: [string, string, string] = [COLORS.primary, COLORS.primaryDark, '#1E3A8A'];
   
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <LinearGradient
-        colors={[COLORS.primary, COLORS.primaryDark]}
-        style={styles.header}
-      >
-        <View style={styles.iconContainer}>
-          <LockIcon size={64} color="#FFFFFF" />
-        </View>
-        <Text style={styles.headerTitle}>
-          {step === 'enter' ? 'Create Your PIN' : 'Confirm Your PIN'}
-        </Text>
-        <Text style={styles.headerSubtitle}>
-          {step === 'enter'
-            ? `Enter a ${SECURITY_CONFIG.PIN_LENGTH_MIN}-${SECURITY_CONFIG.PIN_LENGTH_MAX} digit PIN to secure your app`
-            : 'Re-enter your PIN to confirm'}
-        </Text>
-      </LinearGradient>
+    <LinearGradient
+      colors={bg}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0.4, y: 1 }}
+      style={{ flex: 1 }}
+    >
+      {/* Decorative circles */}
+      <View style={s.circle1} />
+      <View style={s.circle2} />
 
-      <View style={[styles.content, { paddingBottom: insets.bottom + SPACING.xl }]}>
-        <View style={styles.pinDisplay}>
-          {Array.from({ length: 4 }).map((_, index) => (
-            <View
-              key={index}
-              style={[
-                styles.pinDot,
-                index < currentPin.length && styles.pinDotFilled,
-                error && styles.pinDotError,
-              ]}
-            />
-          ))}
-        </View>
-
-        {error && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+        <View style={s.screen}>
+          {/* Brand */}
+          <View style={s.top}>
+            <View style={s.logoWrap}>
+              <Text style={s.logoLetter}>D</Text>
+            </View>
+            <Text style={s.brandName}>DukaPOS</Text>
+            <Text style={s.subtitle}>
+              {step === 'enter'
+                ? `Create a ${SECURITY_CONFIG.PIN_LENGTH_MIN}-${SECURITY_CONFIG.PIN_LENGTH_MAX} digit PIN to secure your app`
+                : 'Re-enter your PIN to confirm'}
+            </Text>
           </View>
-        )}
 
-        <PINKeypad
-          onPress={handleKeypadPress}
-          onDelete={handleDelete}
-          onClear={handleClear}
-          disabled={loading}
-        />
+          {/* PIN dots */}
+          <PINDots filled={currentPin.length} hasError={!!error} />
 
-        {step === 'confirm' && !loading && (
-          <Pressable
-            style={styles.backButton}
-            onPress={handleBack}
-          >
-            <Text style={styles.backButtonText}>← Back</Text>
-          </Pressable>
-        )}
+          {/* Status */}
+          <Text style={[s.statusText, error && s.statusError]}>
+            {error || (loading ? 'Setting up...' : ' ')}
+          </Text>
 
-        {loading && (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Setting up your account...</Text>
+          {/* Keypad */}
+          <Keypad
+            onPress={handleKeypadPress}
+            onDelete={handleDelete}
+            onClear={handleClear}
+            disabled={loading}
+          />
+
+          {/* Footer */}
+          <View style={s.footer}>
+            {step === 'confirm' && !loading && (
+              <Pressable style={s.textBtn} onPress={handleBack}>
+                <Text style={s.textBtnText}>← Back</Text>
+              </Pressable>
+            )}
           </View>
-        )}
-      </View>
-    </SafeAreaView>
+        </View>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
-
-const styles = StyleSheet.create({
-  container: {
+const s = StyleSheet.create({
+  screen: {
     flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  header: {
-    paddingTop: SPACING['3xl'],
-    paddingBottom: SPACING['2xl'],
     paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.md,
+    justifyContent: 'space-evenly',
+  },
+
+  // Decorative circles
+  circle1: {
+    position: 'absolute',
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    top: -100,
+    right: -100,
+  },
+  circle2: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    bottom: 60,
+    left: -80,
+  },
+
+  // Brand block
+  top: { alignItems: 'center', gap: SPACING.sm },
+  logoWrap: {
+    width: 68,
+    height: 68,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  iconContainer: {
-    marginBottom: SPACING.lg,
-  },
-  headerTitle: {
+  logoLetter: {
     fontSize: TYPOGRAPHY.fontSize['3xl'],
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#FFFFFF',
-    marginBottom: SPACING.sm,
-    textAlign: 'center',
   },
-  headerSubtitle: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    color: 'rgba(255, 255, 255, 0.9)',
+  brandName: {
+    fontSize: TYPOGRAPHY.fontSize['2xl'],
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  subtitle: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: 'rgba(255,255,255,0.6)',
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
     textAlign: 'center',
-    lineHeight: TYPOGRAPHY.fontSize.base * TYPOGRAPHY.lineHeight.normal,
     paddingHorizontal: SPACING.md,
+    lineHeight: 20,
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING['2xl'],
+
+  // Status text
+  statusText: {
+    textAlign: 'center',
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: 'rgba(255,255,255,0.5)',
+    height: 20,
   },
-  pinDisplay: {
+  statusError: {
+    color: '#FCA5A5',
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+
+  // Footer
+  footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: SPACING.md,
-    marginBottom: SPACING.xl,
+    gap: SPACING.xl,
   },
-  pinDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: COLORS.border,
-    borderWidth: 2,
-    borderColor: COLORS.border,
+  textBtn: {
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
   },
-  pinDotFilled: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+  textBtnText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: 'rgba(255,255,255,0.65)',
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
   },
-  pinDotError: {
-    backgroundColor: COLORS.error,
-    borderColor: COLORS.error,
-  },
-  errorContainer: {
-    alignItems: 'center',
-    marginBottom: SPACING.lg,
+
+  // Recovery
+  recoveryScroll: {
+    flexGrow: 1,
     paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.xl,
   },
-  errorText: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.error,
-    textAlign: 'center',
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-  },
-  loadingContainer: {
+  recoveryIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: SPACING.lg,
-  },
-  loadingText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-  },
-  backButton: {
-    marginTop: SPACING.lg,
-    alignItems: 'center',
-    paddingVertical: SPACING.md,
-  },
-  backButtonText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.primary,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-  },
-  backButtonContainer: {
-    marginTop: SPACING.xl,
-  },
-  // Security question styles
-  sectionTitle: {
-    fontSize: TYPOGRAPHY.fontSize.lg,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.text,
+    alignSelf: 'center',
     marginBottom: SPACING.lg,
   },
-  questionOption: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    padding: SPACING.lg,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+  recoveryTitle: {
+    fontSize: TYPOGRAPHY.fontSize['2xl'],
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: SPACING.xs,
   },
-  questionOptionPressed: {
-    backgroundColor: COLORS.primaryLight,
-    borderColor: COLORS.primary,
-  },
-  questionOptionText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.text,
-    lineHeight: TYPOGRAPHY.fontSize.base * TYPOGRAPHY.lineHeight.normal,
-  },
-  questionCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    padding: SPACING.lg,
-    marginBottom: SPACING.xl,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  questionLabel: {
+  recoverySubtitle: {
     fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.sm,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-  },
-  questionText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.text,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-  },
-  inputContainer: {
+    color: 'rgba(255,255,255,0.55)',
+    textAlign: 'center',
     marginBottom: SPACING.xl,
+    lineHeight: 20,
+  },
+  glassCard: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  glassCardLabel: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: 'rgba(255,255,255,0.5)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    marginBottom: SPACING.sm,
+  },
+  glassCardText: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: '#FFFFFF',
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    lineHeight: 22,
   },
   inputLabel: {
     fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.sm,
+    color: 'rgba(255,255,255,0.6)',
     fontWeight: TYPOGRAPHY.fontWeight.medium,
+    marginBottom: SPACING.sm,
   },
-  textInput: {
-    backgroundColor: COLORS.surface,
+  input: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
+    borderColor: 'rgba(255,255,255,0.2)',
+    borderRadius: BORDER_RADIUS.xl,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.text,
-    minHeight: 50,
+    color: '#FFFFFF',
   },
-  actionButtons: {
-    marginTop: SPACING.xl,
-    gap: SPACING.md,
+  questionOption: {
+    marginBottom: SPACING.md,
+  },
+  questionOptionPressed: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  questionOptionText: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: '#FFFFFF',
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    lineHeight: 22,
   },
 });

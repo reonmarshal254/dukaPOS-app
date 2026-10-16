@@ -24,11 +24,29 @@ import BarcodeScanner from '../../../components/common/BarcodeScanner';
 import CategoryModal from '../../../components/products/CategoryModal';
 import { ScanIcon, PlusIcon } from '../../../components/common/Icons';
 import { useCreateProduct } from '../../../hooks/useProducts';
-import { useCategories } from '../../../hooks/useCategories';
+import { useCategories, useCreateCategory } from '../../../hooks/useCategories';
 import { toMinorUnits } from '../../../utils/currency';
 import { COLORS } from '../../../constants/colors';
 import { SPACING, BORDER_RADIUS } from '../../../constants/spacing';
 import { TYPOGRAPHY } from '../../../constants/typography';
+
+// Pre-built categories for retail and grocery stores
+const DEFAULT_CATEGORIES = [
+  'Beverages',
+  'Snacks & Confectionery',
+  'Dairy Products',
+  'Fresh Produce',
+  'Bakery & Bread',
+  'Canned & Packaged Foods',
+  'Household & Cleaning',
+  'Personal Care & Hygiene',
+  'Health & Wellness',
+  'Frozen Foods',
+  'Grains & Cereals',
+  'Cooking Ingredients',
+  'Electronics & Accessories',
+  'Stationery & Office Supplies',
+];
 
 const productSchema = z.object({
   name: z.string().min(1, 'Product name is required'),
@@ -53,7 +71,9 @@ export default function AddProductScreen() {
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [categoryDropdownVisible, setCategoryDropdownVisible] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showDefaultCategories, setShowDefaultCategories] = useState(false);
   const createProduct = useCreateProduct();
+  const createCategory = useCreateCategory();
   const { data: categories = [] } = useCategories();
 
   const {
@@ -63,6 +83,7 @@ export default function AddProductScreen() {
     formState: { errors },
     setValue,
     getValues,
+    watch,
   } = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
     defaultValues: {
@@ -161,6 +182,27 @@ export default function AddProductScreen() {
     Alert.alert('Barcode Scanned', `Barcode: ${barcode}`);
   };
 
+  const handleQuickCategory = async (categoryName: string, alreadyExists: boolean) => {
+    if (alreadyExists) {
+      const existingCategory = categories.find(
+        (cat) => cat.name.toLowerCase() === categoryName.toLowerCase()
+      );
+      if (existingCategory) {
+        setValue('categoryId', existingCategory.id);
+      }
+      return;
+    }
+
+    try {
+      const newCategory = await createCategory.mutateAsync({ name: categoryName });
+      setValue('categoryId', newCategory.id);
+      Alert.alert('Category Created', `"${categoryName}" category has been added and selected.`);
+    } catch (error) {
+      console.error('Error creating category:', error);
+      Alert.alert('Error', 'Failed to create category. Please try again.');
+    }
+  };
+
   const onSubmit = async (data: ProductFormData) => {
     try {
       const purchasePrice = parseFloat(data.purchasePrice);
@@ -241,6 +283,33 @@ export default function AddProductScreen() {
   };
 
   const selectedCategory = categories.find(c => c.id === getValues('categoryId'));
+
+  // Watch price fields to trigger real-time calculation
+  const watchedPurchasePrice = watch('purchasePrice');
+  const watchedSellingPrice = watch('sellingPrice');
+
+  // Calculate profit/loss for visual indicator
+  const calculateProfitLoss = () => {
+    const purchasePrice = parseFloat(watchedPurchasePrice || '0');
+    const sellingPrice = parseFloat(watchedSellingPrice || '0');
+    
+    if (isNaN(purchasePrice) || isNaN(sellingPrice) || purchasePrice === 0 || sellingPrice === 0) {
+      return null;
+    }
+    
+    const difference = sellingPrice - purchasePrice;
+    const percentage = ((difference / purchasePrice) * 100).toFixed(1);
+    
+    return {
+      amount: difference,
+      percentage,
+      isProfit: difference > 0,
+      isLoss: difference < 0,
+      isBreakeven: difference === 0,
+    };
+  };
+
+  const profitLoss = calculateProfitLoss();
 
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
@@ -370,15 +439,63 @@ export default function AddProductScreen() {
                   <View style={styles.categorySection}>
                     <View style={styles.categoryHeader}>
                       <Text style={styles.categoryLabel}>Category (Optional)</Text>
-                      <TouchableOpacity
-                        style={styles.addCategoryButton}
-                        onPress={() => setCategoryModalVisible(true)}
-                        activeOpacity={0.7}
-                      >
-                        <PlusIcon size={16} color={COLORS.primary} />
-                        <Text style={styles.addCategoryText}>New</Text>
-                      </TouchableOpacity>
+                      <View style={styles.categoryActions}>
+                        <TouchableOpacity
+                          style={styles.addCategoryButton}
+                          onPress={() => setShowDefaultCategories(!showDefaultCategories)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.addCategoryText}>
+                            {showDefaultCategories ? 'Hide' : 'Quick Select'}
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.addCategoryButton}
+                          onPress={() => setCategoryModalVisible(true)}
+                          activeOpacity={0.7}
+                        >
+                          <PlusIcon size={16} color={COLORS.primary} />
+                          <Text style={styles.addCategoryText}>New</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
+                    
+                    {/* Pre-built categories quick select */}
+                    {showDefaultCategories && (
+                      <View style={styles.defaultCategoriesContainer}>
+                        <Text style={styles.defaultCategoriesTitle}>Quick Categories:</Text>
+                        <View style={styles.defaultCategoriesGrid}>
+                          {DEFAULT_CATEGORIES.map((categoryName) => {
+                            const alreadyExists = categories.some(
+                              (cat) => cat.name.toLowerCase() === categoryName.toLowerCase()
+                            );
+                            return (
+                              <TouchableOpacity
+                                key={categoryName}
+                                style={[
+                                  styles.defaultCategoryChip,
+                                  alreadyExists && styles.defaultCategoryChipDisabled,
+                                ]}
+                                onPress={() => handleQuickCategory(categoryName, alreadyExists)}
+                                activeOpacity={0.7}
+                                disabled={alreadyExists}
+                              >
+                                <Text
+                                  style={[
+                                    styles.defaultCategoryText,
+                                    alreadyExists && styles.defaultCategoryTextDisabled,
+                                  ]}
+                                >
+                                  {categoryName}
+                                  {alreadyExists && ' ✓'}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    )}
+                    
                     <TouchableOpacity
                       style={styles.dropdown}
                       onPress={() => setCategoryDropdownVisible(true)}
@@ -506,6 +623,47 @@ export default function AddProductScreen() {
                 />
               )}
             />
+
+            {/* Profit/Loss Calculator */}
+            {profitLoss && (
+              <View style={[
+                styles.profitLossCard,
+                profitLoss.isProfit && styles.profitCard,
+                profitLoss.isLoss && styles.lossCard,
+                profitLoss.isBreakeven && styles.breakevenCard,
+              ]}>
+                <View style={styles.profitLossHeader}>
+                  <Text style={[
+                    styles.profitLossLabel,
+                    profitLoss.isProfit && styles.profitText,
+                    profitLoss.isLoss && styles.lossText,
+                  ]}>
+                    {profitLoss.isProfit ? '📈 Profit' : profitLoss.isLoss ? '📉 Loss' : '➡️ Break Even'}
+                  </Text>
+                  <Text style={[
+                    styles.profitLossPercentage,
+                    profitLoss.isProfit && styles.profitText,
+                    profitLoss.isLoss && styles.lossText,
+                  ]}>
+                    {profitLoss.percentage}%
+                  </Text>
+                </View>
+                <Text style={[
+                  styles.profitLossAmount,
+                  profitLoss.isProfit && styles.profitText,
+                  profitLoss.isLoss && styles.lossText,
+                ]}>
+                  {profitLoss.isProfit ? '+' : ''}{profitLoss.amount.toFixed(2)}
+                </Text>
+                <Text style={styles.profitLossNote}>
+                  {profitLoss.isProfit 
+                    ? 'Good margin! This product will generate profit.' 
+                    : profitLoss.isLoss 
+                    ? 'Warning: Selling below purchase price will result in loss.'
+                    : 'No profit or loss at this price.'}
+                </Text>
+              </View>
+            )}
 
             <Controller
               control={control}
@@ -731,6 +889,49 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.text,
   },
+  categoryActions: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  defaultCategoriesContainer: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  defaultCategoriesTitle: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text,
+    marginBottom: SPACING.sm,
+  },
+  defaultCategoriesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+  },
+  defaultCategoryChip: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  defaultCategoryText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+  },
+  defaultCategoryChipDisabled: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#D1D5DB',
+  },
+  defaultCategoryTextDisabled: {
+    color: '#9CA3AF',
+  },
   dropdown: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -923,6 +1124,55 @@ const styles = StyleSheet.create({
   dateIcon: {
     fontSize: 20,
     marginLeft: SPACING.sm,
+  },
+  profitLossCard: {
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
+    borderWidth: 2,
+  },
+  profitCard: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#10B981',
+  },
+  lossCard: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#EF4444',
+  },
+  breakevenCard: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#9CA3AF',
+  },
+  profitLossHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.xs,
+  },
+  profitLossLabel: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.text,
+  },
+  profitLossPercentage: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+  profitLossAmount: {
+    fontSize: TYPOGRAPHY.fontSize['2xl'],
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    marginBottom: SPACING.xs,
+  },
+  profitText: {
+    color: '#10B981',
+  },
+  lossText: {
+    color: '#EF4444',
+  },
+  profitLossNote: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
+    fontStyle: 'italic',
   },
   clearDateButton: {
     marginTop: SPACING.xs,

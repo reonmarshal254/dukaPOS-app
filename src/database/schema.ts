@@ -20,6 +20,7 @@ export const TABLES = {
   EXPENSES: 'expenses',
   PRODUCT_VARIANTS: 'product_variants',
   RECEIPTS: 'receipts',
+  REMINDERS: 'reminders',
   APP_SETTINGS: 'app_settings',
   SYNC_QUEUE: 'sync_queue',
   SYNC_LOGS: 'sync_logs',
@@ -420,6 +421,22 @@ CREATE TABLE IF NOT EXISTS ${TABLES.AUDIT_LOGS} (
 );
 `;
 
+// Create reminders table
+export const CREATE_REMINDERS_TABLE = `
+CREATE TABLE IF NOT EXISTS ${TABLES.REMINDERS} (
+  id TEXT PRIMARY KEY NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  reminder_type TEXT NOT NULL,
+  scheduled_time TEXT NOT NULL,
+  scheduled_days TEXT,
+  is_enabled INTEGER DEFAULT 1,
+  notification_id TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+`;
+
 // Indexes for performance
 export const CREATE_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_products_category ON ${TABLES.PRODUCTS}(category_id);`,
@@ -448,6 +465,8 @@ export const CREATE_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_product_variants_sku ON ${TABLES.PRODUCT_VARIANTS}(sku);`,
   `CREATE INDEX IF NOT EXISTS idx_receipts_sale ON ${TABLES.RECEIPTS}(sale_id);`,
   `CREATE INDEX IF NOT EXISTS idx_receipts_number ON ${TABLES.RECEIPTS}(receipt_number);`,
+  `CREATE INDEX IF NOT EXISTS idx_reminders_type ON ${TABLES.REMINDERS}(reminder_type);`,
+  `CREATE INDEX IF NOT EXISTS idx_reminders_enabled ON ${TABLES.REMINDERS}(is_enabled);`,
 ];
 
 // All table creation statements
@@ -472,6 +491,7 @@ export const ALL_TABLES = [
   CREATE_EXPENSES_TABLE,
   CREATE_PRODUCT_VARIANTS_TABLE,
   CREATE_RECEIPTS_TABLE,
+  CREATE_REMINDERS_TABLE,
   CREATE_APP_SETTINGS_TABLE,
   CREATE_SYNC_QUEUE_TABLE,
   CREATE_SYNC_LOGS_TABLE,

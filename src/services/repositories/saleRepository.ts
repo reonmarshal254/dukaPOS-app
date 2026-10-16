@@ -3,6 +3,7 @@ import { TABLES } from '../../database/schema';
 import { SyncStatus, Sale, SaleWithDetails, SaleItem, Payment } from '../../types';
 import { generateUUID } from '../../utils/uuid';
 import { getCurrentDateTime } from '../../utils/datetime';
+import { salesEvents } from '../events/salesEvents';
 
 export class SaleRepository {
   /**
@@ -115,6 +116,9 @@ export class SaleRepository {
         'PENDING',
       ]
     );
+
+    // Emit event for real-time updates
+    salesEvents.emit(id);
 
     return {
       id,

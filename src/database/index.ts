@@ -233,6 +233,39 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
       }
     }
 
+    // Migration 7: Create reminders table
+    if (currentVersion < 7) {
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log('Running migration 7: Creating reminders table');
+      }
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS reminders (
+          id TEXT PRIMARY KEY NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT,
+          reminder_type TEXT NOT NULL,
+          scheduled_time TEXT NOT NULL,
+          scheduled_days TEXT,
+          is_enabled INTEGER DEFAULT 1,
+          notification_id TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+      await db.execAsync(`
+        CREATE INDEX IF NOT EXISTS idx_reminders_type ON reminders(reminder_type);
+      `);
+      await db.execAsync(`
+        CREATE INDEX IF NOT EXISTS idx_reminders_enabled ON reminders(is_enabled);
+      `);
+      await db.execAsync('PRAGMA user_version = 7;');
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log('Migration 7 completed');
+      }
+    }
+
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Migration error:', error);

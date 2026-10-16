@@ -53,6 +53,31 @@ export default function RootLayout() {
           }
         });
 
+        // Re-schedule enabled reminders after app restart
+        try {
+          const { getEnabledReminders } = await import('../services/repositories/reminderRepository');
+          const { scheduleReminder } = await import('../services/notificationService');
+          
+          const reminders = await getEnabledReminders();
+          for (const reminder of reminders) {
+            await scheduleReminder({
+              id: reminder.id,
+              title: reminder.title,
+              description: reminder.description,
+              reminderType: reminder.reminderType,
+              scheduledTime: reminder.scheduledTime,
+              scheduledDays: reminder.scheduledDays,
+              isEnabled: reminder.isEnabled,
+              notificationId: reminder.notificationId,
+            });
+          }
+          if (__DEV__ && reminders.length > 0) {
+            console.log(`Rescheduled ${reminders.length} enabled reminders`);
+          }
+        } catch (reminderError) {
+          console.error('Failed to reschedule reminders:', reminderError);
+        }
+
         setIsDbReady(true);
       } catch (error: any) {
         if (__DEV__) {

@@ -174,6 +174,15 @@ export default function SettingsScreen() {
           badge: notifDot ? 'Off' : null,
           action: () => router.push('/(tabs)/settings/notifications'),
         },
+        {
+          id: 'reminders',
+          label: 'Reminders',
+          description: 'Manage your custom alerts',
+          icon: AlertIcon,
+          color: COLORS.primary,
+          badge: null,
+          action: () => router.push('/(tabs)/settings/reminders'),
+        },
       ],
     },
     {

@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, G, Polyline, Line, Text as SvgText } from 'react-native-svg';
 import { useRouter } from 'expo-router';
@@ -31,6 +31,7 @@ import {
   PackageIcon,
   WalletIcon,
 } from '../../../components/common/Icons';
+import { salesEvents } from '../../../services/events/salesEvents';
 
 const { width } = Dimensions.get('window');
 const H_PAD = SPACING.lg;
@@ -475,6 +476,18 @@ export default function ReportsScreen() {
     await Promise.all([rs(), rp(), rw()]);
     setRefreshing(false);
   };
+
+  // Subscribe to sales events for real-time updates
+  useEffect(() => {
+    const unsubscribe = salesEvents.subscribe(() => {
+      // Refetch data when a new sale is created
+      rs();
+      rp();
+      rw();
+    });
+
+    return unsubscribe;
+  }, [rs, rp, rw]);
 
   const totalRevenue   = salesStats?.totalRevenue       ?? 0;
   const transactions   = salesStats?.totalTransactions  ?? 0;

@@ -223,3 +223,95 @@ export async function sendTestNotification(): Promise<boolean> {
   });
   return true;
 }
+
+
+// ─── Custom reminder scheduling ────────────────────────────────────────────────
+export interface ReminderData {
+  id: string;
+  title: string;
+  description?: string;
+  reminderType: string;
+  scheduledTime: string; // Format: "HH:MM"
+  scheduledDays?: string; // JSON array of days: "[0,1,2,3,4,5,6]" where 0=Sunday
+  isEnabled: boolean;
+  notificationId?: string;
+}
+
+/**
+ * Schedule a custom reminder
+ */
+export async function scheduleReminder(reminder: ReminderData): Promise<string | null> {
+  if (!N) return null;
+  
+  try {
+    const hasPermission = await requestNotificationPermission();
+    if (!hasPermission) {
+      throw new Error('Notification permissions not granted');
+    }
+
+    // Parse time (HH:MM format)
+    const [hour, minute] = reminder.scheduledTime.split(':').map(Number);
+
+    if (isNaN(hour) || isNaN(minute)) {
+      throw new Error('Invalid time format');
+    }
+
+    // Schedule daily notification
+    const notificationId = await N.scheduleNotificationAsync({
+      content: {
+        title: reminder.title,
+        body: reminder.description || '',
+        data: { 
+          type: 'custom_reminder',
+          reminderId: reminder.id,
+        },
+        sound: 'default',
+        badge: 1,
+        ...(Platform.OS === 'android' && { channelId: 'dukapos-reminders' }),
+      },
+      trigger: {
+        type: N.SchedulableTriggerInputTypes.DAILY,
+        hour,
+        minute,
+      },
+    });
+
+    return notificationId;
+  } catch (error) {
+    console.error('Error scheduling reminder:', error);
+    return null;
+  }
+}
+
+/**
+ * Update an existing reminder
+ */
+export async function updateReminder(reminder: ReminderData): Promise<string | null> {
+  if (!N) return null;
+  
+  try {
+    // Cancel old notification if exists
+    if (reminder.notificationId) {
+      await cancelReminder(reminder.notificationId);
+    }
+
+    // Schedule new notification
+    return await scheduleReminder(reminder);
+  } catch (error) {
+    console.error('Error updating reminder:', error);
+    return null;
+  }
+}
+
+/**
+ * Cancel a scheduled reminder
+ */
+export async function cancelReminder(notificationId: string): Promise<void> {
+  if (!N) return;
+  
+  try {
+    await N.cancelScheduledNotificationAsync(notificationId);
+  } catch (error) {
+    console.error('Error canceling reminder:', error);
+  }
+}
