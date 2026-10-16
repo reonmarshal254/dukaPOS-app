@@ -59,6 +59,11 @@ export default {
         'android.permission.POST_NOTIFICATIONS',
         'android.permission.VIBRATE',
       ],
+      statusBar: {
+        backgroundColor: '#2563EB',
+        barStyle: 'light-content',
+        translucent: false,
+      },
       ...(IS_PRODUCTION && {
         enableProguardInReleaseBuilds: true,
         enableShrinkResourcesInReleaseBuilds: true,
@@ -73,6 +78,7 @@ export default {
       'expo-router',
       'expo-secure-store',
       'expo-sqlite',
+      'expo-audio',
       [
         'expo-image-picker',
         {

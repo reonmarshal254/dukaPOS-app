@@ -41,7 +41,6 @@ export default function AddVariantModal({
   const [currentQuantity, setCurrentQuantity] = useState('0');
   const [isDefault, setIsDefault] = useState(false);
   const [scannerVisible, setScannerVisible] = useState(false);
-  const [scanTarget, setScanTarget] = useState<'barcode' | 'sku'>('barcode');
 
   const createVariant = useCreateVariant();
 
@@ -58,19 +57,9 @@ export default function AddVariantModal({
   };
 
   const handleBarcodeScanned = (scannedCode: string) => {
-    if (scanTarget === 'barcode') {
-      setBarcode(scannedCode);
-      Alert.alert('Barcode Scanned', `Barcode: ${scannedCode}`);
-    } else {
-      setSku(scannedCode);
-      Alert.alert('SKU Scanned', `SKU: ${scannedCode}`);
-    }
+    setBarcode(scannedCode);
+    Alert.alert('Barcode Scanned', `Barcode: ${scannedCode}`);
     setScannerVisible(false);
-  };
-
-  const openScanner = (target: 'barcode' | 'sku') => {
-    setScanTarget(target);
-    setScannerVisible(true);
   };
 
   const handleSubmit = async () => {
@@ -274,7 +263,7 @@ export default function AddVariantModal({
               />
               <TouchableOpacity
                 style={styles.scanButton}
-                onPress={() => openScanner('barcode')}
+                onPress={() => setScannerVisible(true)}
               >
                 <ScanIcon size={20} color="#FFFFFF" />
                 <Text style={styles.scanButtonText}>Scan</Text>
@@ -282,22 +271,13 @@ export default function AddVariantModal({
             </View>
 
             <Text style={styles.label}>SKU (Optional)</Text>
-            <View style={styles.barcodeRow}>
-              <TextInput
-                style={[styles.input, styles.barcodeInput]}
-                value={sku}
-                onChangeText={setSku}
-                placeholder="Unique SKU for this variant"
-                placeholderTextColor={COLORS.textSecondary}
-              />
-              <TouchableOpacity
-                style={styles.scanButton}
-                onPress={() => openScanner('sku')}
-              >
-                <ScanIcon size={20} color="#FFFFFF" />
-                <Text style={styles.scanButtonText}>Scan</Text>
-              </TouchableOpacity>
-            </View>
+            <TextInput
+              style={styles.input}
+              value={sku}
+              onChangeText={setSku}
+              placeholder="Unique SKU for this variant"
+              placeholderTextColor={COLORS.textSecondary}
+            />
 
             <Text style={styles.label}>Initial Stock Quantity</Text>
             <TextInput

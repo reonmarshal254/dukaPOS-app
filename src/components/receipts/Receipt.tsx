@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import { formatCurrency } from '../../utils/currency';
 
 interface ReceiptItem {
@@ -48,6 +48,10 @@ export default function Receipt({
   businessPhone = '',
 }: ReceiptProps) {
   const showBalance = balance > 0 && (paymentMethod === 'CASH' || paymentMethod === 'Cash');
+  const { width } = useWindowDimensions();
+  
+  // Calculate number of characters based on width (rough estimate: 10px per character)
+  const charCount = Math.floor((width - 32) / 8); // 32 = padding, 8 = approx char width
 
   return (
     <View style={styles.container}>
@@ -56,7 +60,7 @@ export default function Receipt({
       {businessAddress && <Text style={styles.businessInfo}>{businessAddress}</Text>}
       {businessPhone && <Text style={styles.businessInfo}>{businessPhone}</Text>}
       
-      <Text style={styles.divider}>{'='.repeat(32)}</Text>
+      <Text style={styles.divider}>{'='.repeat(charCount)}</Text>
       
       {/* Receipt Info */}
       <Text style={styles.receiptNumber}>Receipt: #{receiptNumber}</Text>
@@ -64,7 +68,7 @@ export default function Receipt({
       <Text style={styles.info}>Time: {time}</Text>
       <Text style={styles.info}>Cashier: {cashier}</Text>
       
-      <Text style={styles.divider}>{'='.repeat(32)}</Text>
+      <Text style={styles.divider}>{'='.repeat(charCount)}</Text>
       
       {/* Items Header */}
       <View style={styles.itemRow}>
@@ -74,7 +78,7 @@ export default function Receipt({
         <Text style={[styles.itemText, styles.itemTotal]}>Total</Text>
       </View>
       
-      <Text style={styles.line}>{'-'.repeat(32)}</Text>
+      <Text style={styles.line}>{'-'.repeat(charCount)}</Text>
       
       {/* Items */}
       {items.map((item, index) => (
@@ -96,7 +100,7 @@ export default function Receipt({
         </View>
       ))}
       
-      <Text style={styles.divider}>{'='.repeat(32)}</Text>
+      <Text style={styles.divider}>{'='.repeat(charCount)}</Text>
       
       {/* Totals */}
       <View style={styles.totalRow}>
@@ -116,7 +120,7 @@ export default function Receipt({
         <Text style={styles.grandTotalValue}>{formatCurrency(total)}</Text>
       </View>
       
-      <Text style={styles.line}>{'-'.repeat(32)}</Text>
+      <Text style={styles.line}>{'-'.repeat(charCount)}</Text>
       
       {/* Payment Details */}
       {paymentMethods && paymentMethods.length > 1 ? (
@@ -153,7 +157,7 @@ export default function Receipt({
         </View>
       )}
       
-      <Text style={styles.divider}>{'='.repeat(32)}</Text>
+      <Text style={styles.divider}>{'='.repeat(charCount)}</Text>
       
       {/* Footer */}
       <Text style={styles.thankYou}>Thank You!</Text>
@@ -186,13 +190,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#000000',
     marginVertical: 8,
-    fontFamily: 'monospace',
   },
   line: {
     fontSize: 12,
     color: '#000000',
     marginVertical: 4,
-    fontFamily: 'monospace',
   },
   receiptNumber: {
     fontSize: 14,
@@ -208,25 +210,26 @@ const styles = StyleSheet.create({
   itemRow: {
     flexDirection: 'row',
     marginBottom: 4,
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   itemText: {
     fontSize: 11,
     color: '#000000',
-    fontFamily: 'monospace',
   },
   itemName: {
-    flex: 2,
+    width: '40%',
   },
   itemQty: {
-    flex: 1,
+    width: '15%',
     textAlign: 'center',
   },
   itemPrice: {
-    flex: 1,
+    width: '20%',
     textAlign: 'right',
   },
   itemTotal: {
-    flex: 1,
+    width: '20%',
     textAlign: 'right',
   },
   totalRow: {

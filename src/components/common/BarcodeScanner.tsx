@@ -18,16 +18,55 @@ export default function BarcodeScanner({
 }: BarcodeScannerProps) {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
+  const [sound, setSound] = useState<any>(null);
 
   useEffect(() => {
     (async () => {
       const { status } = await Camera.requestCameraPermissionsAsync();
       setHasPermission(status === 'granted');
     })();
+    
+    // Try to load the beep sound (only works outside Expo Go)
+    loadSound();
+    
+    return () => {
+      // Cleanup sound when component unmounts
+      if (sound) {
+        try {
+          sound.release();
+        } catch (error) {
+          // Ignore cleanup errors
+        }
+      }
+    };
   }, []);
 
-  const playBeep = () => {
-    // Use vibration as feedback (works in Expo Go)
+  const loadSound = async () => {
+    try {
+      // Dynamic import to avoid crashes in Expo Go
+      const { AudioPlayer } = require('expo-audio');
+      const beepSound = new AudioPlayer(
+        require('../../../assets/scanner-beep-sound.mp3')
+      );
+      await beepSound.load();
+      setSound(beepSound);
+    } catch (error) {
+      // Sound not available (probably in Expo Go), will use vibration only
+      console.log('Scanner sound not available, using vibration only');
+    }
+  };
+
+  const playBeep = async () => {
+    // Try to play sound if available
+    try {
+      if (sound) {
+        await sound.play();
+      }
+    } catch (error) {
+      // Sound playback failed, ignore
+    }
+    
+    // Always vibrate as fallback feedback
     Vibration.vibrate(100);
   };
 

@@ -50,6 +50,18 @@ export default function ProductCard({ product, onPress }: ProductCardProps) {
           {formatCurrency(product.sellingPrice)}
         </Text>
 
+        {/* Stock Count */}
+        <View style={styles.stockRow}>
+          <Text style={styles.stockLabel}>Stock:</Text>
+          <Text style={[
+            styles.stockValue,
+            isOutOfStock && styles.stockOutOfStock,
+            isLowStock && !isOutOfStock && styles.stockLow,
+          ]}>
+            {product.currentQuantity} {product.unit}
+          </Text>
+        </View>
+
         {/* Badges */}
         {(isOutOfStock || isLowStock) && (
           <View style={styles.badges}>
@@ -117,6 +129,28 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.primary,
     marginBottom: SPACING.xs,
+  },
+  stockRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.xs,
+    gap: SPACING.xs,
+  },
+  stockLabel: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+  },
+  stockValue: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.success,
+  },
+  stockLow: {
+    color: COLORS.badgeWarningText,
+  },
+  stockOutOfStock: {
+    color: COLORS.badgeErrorText,
   },
   badges: {
     flexDirection: 'row',

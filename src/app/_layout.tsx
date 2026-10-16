@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initializeDatabase } from '../database';
@@ -130,6 +131,7 @@ export default function RootLayout() {
     <ErrorBoundary>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
+          <StatusBar style="light" />
           <NetworkSyncProvider />
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="index" />
